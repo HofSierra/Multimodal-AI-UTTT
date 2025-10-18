@@ -42,7 +42,8 @@ class Game:
         pygame.draw.line(screen, Config.lineColor, (0, Config.height-Config.size),
                          (Config.width, Config.height-Config.size), Config.lineWidth)
 
-        #local boards
+        #logic is missing so commenting it out
+        """#local boards
         for row in range(Config.rows):
             for col in range(Config.cols):
                 board_x_offset = col * Config.size
@@ -66,7 +67,7 @@ class Game:
                 pygame.draw.line(screen, Config.lineColor,
                                  (board_x_offset, board_y_offset + 2*Config.lineSize),
                                  (board_x_offset + Config.size, board_y_offset + 2*Config.lineSize),
-                                 Config.localLineWidth)
+                                 Config.localLineWidth)"""
 
 
     def switch_player(self):
