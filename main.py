@@ -30,11 +30,44 @@ class Game:
         self.show_lines()
 
     def show_lines(self):
-        pygame.draw.line(screen, Config.lineColor, (Config.size, 0), (Config.size, Config.height), Config.lineWidth)
-        pygame.draw.line(screen, Config.lineColor, (Config.width-Config.size, 0), (Config.width-Config.size, Config.height), Config.lineWidth)
 
-        pygame.draw.line(screen, Config.lineColor, (0, Config.size), (Config.width, Config.size), Config.lineWidth)
-        pygame.draw.line(screen, Config.lineColor, (0, Config.height-Config.size), (Config.width, Config.height-Config.size), Config.lineWidth)
+        #global board
+        pygame.draw.line(screen, Config.lineColor, (Config.size, 0),
+                         (Config.size, Config.height), Config.lineWidth)
+        pygame.draw.line(screen, Config.lineColor, (Config.width-Config.size, 0),
+                         (Config.width-Config.size, Config.height), Config.lineWidth)
+
+        pygame.draw.line(screen, Config.lineColor, (0, Config.size),
+                         (Config.width, Config.size), Config.lineWidth)
+        pygame.draw.line(screen, Config.lineColor, (0, Config.height-Config.size),
+                         (Config.width, Config.height-Config.size), Config.lineWidth)
+
+        #local boards
+        for row in range(Config.rows):
+            for col in range(Config.cols):
+                board_x_offset = col * Config.size
+                board_y_offset = row * Config.size
+
+                pygame.draw.line(screen, Config.lineColor,
+                                 (board_x_offset + Config.lineSize, board_y_offset),
+                                 (board_x_offset + Config.lineSize, board_y_offset + Config.size),
+                                 Config.localLineWidth)
+
+                pygame.draw.line(screen, Config.lineColor,
+                                 (board_x_offset + 2*Config.lineSize, board_y_offset),
+                                 (board_x_offset + 2*Config.lineSize, board_y_offset + Config.size),
+                                 Config.localLineWidth)
+
+                pygame.draw.line(screen, Config.lineColor,
+                                 (board_x_offset, board_y_offset + Config.lineSize),
+                                 (board_x_offset + Config.size, board_y_offset + Config.lineSize),
+                                 Config.localLineWidth)
+
+                pygame.draw.line(screen, Config.lineColor,
+                                 (board_x_offset, board_y_offset + 2*Config.lineSize),
+                                 (board_x_offset + Config.size, board_y_offset + 2*Config.lineSize),
+                                 Config.localLineWidth)
+
 
     def switch_player(self):
         self.player = self.player % 2 + 1
