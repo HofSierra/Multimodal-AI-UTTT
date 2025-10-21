@@ -89,19 +89,19 @@ class Board:
         return empty_squares
 
     def reset_board(self):
-        self.squares = np.zeros((ROWS, COLS))
+        self.squares = np.zeros((ROWS, COLS, ROWS, COLS))
         self.marked_squares = 0
 
 class Game:
     def __init__(self):
         self.board = Board()
         self.player = 1
-        self.show_lines()
         self.hover = None
         self.allowed_square = None
         self.running = True
         self.winner = 0
         self.winner_line_coords = None
+        self.show_lines()
 
     def play_move(self, row, col):
         self.board.mark_square(row, col, self.player)
@@ -123,30 +123,36 @@ class Game:
 
         #logic is still sort of missing so commenting it out
         #local boards
+        local_lines_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         for row in range(ROWS):
             for col in range(COLS):
                 board_x_offset = col * SIZE
                 board_y_offset = row * SIZE
 
-                pygame.draw.line(screen, LINE_COLOR,
+                is_allowed = self.allowed_square is None or (row, col) == self.allowed_square
+                draw_color = LINE_COLOR if is_allowed else DENIED_SQUARE_LINE_COLOR
+
+                pygame.draw.line(local_lines_surface, draw_color,
                                  (board_x_offset + LINE_SIZE, board_y_offset),
                                  (board_x_offset + LINE_SIZE, board_y_offset + SIZE),
                                  LOCAL_LINE_WIDTH)
 
-                pygame.draw.line(screen, LINE_COLOR,
+                pygame.draw.line(local_lines_surface, draw_color,
                                  (board_x_offset + 2*LINE_SIZE, board_y_offset),
                                  (board_x_offset + 2*LINE_SIZE, board_y_offset + SIZE),
                                  LOCAL_LINE_WIDTH)
 
-                pygame.draw.line(screen, LINE_COLOR,
+                pygame.draw.line(local_lines_surface, draw_color,
                                  (board_x_offset, board_y_offset + LINE_SIZE),
                                  (board_x_offset + SIZE, board_y_offset + LINE_SIZE),
                                  LOCAL_LINE_WIDTH)
 
-                pygame.draw.line(screen, LINE_COLOR,
+                pygame.draw.line(local_lines_surface, draw_color,
                                  (board_x_offset, board_y_offset + 2*LINE_SIZE),
                                  (board_x_offset + SIZE, board_y_offset + 2*LINE_SIZE),
                                  LOCAL_LINE_WIDTH)
+
+        screen.blit(local_lines_surface, (0, 0))
 
     def draw_win(self):
         if self.winner_line_coords is not None:
