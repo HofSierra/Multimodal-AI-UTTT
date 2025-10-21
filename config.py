@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 #const values
 WIDTH = 720
 HEIGHT = 720
@@ -16,7 +13,9 @@ LOCAL_RADIUS = LINE_SIZE // 4
 CROSS_WIDTH = 20
 
 #colors
-BG_COLOR = (255, 255, 255)
+BG_COLOR = (230, 217, 200)
 LINE_COLOR = (0, 0, 0)
+CROSS_COLOR = (205, 42, 91)
+CIRCLE_COLOR = (8, 112, 202)
 HOVER_COLOR = (0, 0, 0, 60)
-ALLOWED_SQUARE_COLOR = (182, 219, 192, 60)
+ALLOWED_SQUARE_COLOR = (182, 219, 192, 85)
