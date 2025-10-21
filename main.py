@@ -22,6 +22,44 @@ class Board:
         #debug -> initial state
         print(self.squares)
 
+    def final_state(self):
+        #vertical wins
+        for col in range(COLS):
+            if self.squares[0][col] == self.squares[1][col] == self.squares[2][col] != 0:
+                winner = self.squares[0][col]
+                x = col * SIZE + SIZE // 2
+                initial_pos = (x, 20)
+                end_pos = (x, HEIGHT - 20)
+                line_coords = (initial_pos, end_pos)
+                return winner, line_coords
+
+        #horizontal wins
+        for row in range(ROWS):
+            if self.squares[row][0] == self.squares[row][1] == self.squares[row][2] != 0:
+                winner = self.squares[row][0]
+                y = row * SIZE + SIZE // 2
+                initial_pos = (20, y)
+                end_pos = (WIDTH - 20, y)
+                line_coords = (initial_pos, end_pos)
+                #pygame.draw.line(screen, LINE_COLOR, initial_pos, end_pos, LINE_WIDTH)
+                return winner, line_coords
+
+        #diagonal wins
+        if self.squares[0][0] == self.squares[1][1] == self.squares[2][2] != 0:
+            winner = self.squares[1][1]
+            initial_pos = (20, 20)
+            end_pos = (WIDTH - 20, HEIGHT - 20)
+            line_coords = (initial_pos, end_pos)
+            return winner, line_coords
+        if self.squares[2][0] == self.squares[1][1] == self.squares[0][2] != 0:
+            winner = self.squares[1][1]
+            initial_pos = (20, HEIGHT - 20)
+            end_pos = (WIDTH - 20, 20)
+            line_coords = (initial_pos, end_pos)
+            return winner, line_coords
+
+        return 0, None
+
     def mark_square(self, row, col, player):
         self.squares[row][col] = player
         self.marked_squares += 1
@@ -50,6 +88,10 @@ class Board:
 
         return empty_squares
 
+    def reset_board(self):
+        self.squares = np.zeros((ROWS, COLS))
+        self.marked_squares = 0
+
 class Game:
     def __init__(self):
         self.board = Board()
@@ -57,6 +99,14 @@ class Game:
         self.show_lines()
         self.hover = None
         self.allowed_square = None
+        self.running = True
+        self.winner = 0
+        self.winner_line_coords = None
+
+    def play_move(self, row, col):
+        self.board.mark_square(row, col, self.player)
+        self.draw_local_win_fig(row, col)
+        self.switch_player()
 
     def show_lines(self):
 
@@ -98,6 +148,11 @@ class Game:
                                  (board_x_offset + SIZE, board_y_offset + 2*LINE_SIZE),
                                  LOCAL_LINE_WIDTH)"""
 
+    def draw_win(self):
+        if self.winner_line_coords is not None:
+            initial_pos, end_pos = self.winner_line_coords
+            pygame.draw.line(screen, LINE_COLOR, initial_pos, end_pos, CROSS_WIDTH)
+
     #need to clear the whole board for the hover ui so everything needs to be redrawn
     def draw_all_again(self):
         for row in range(ROWS):
@@ -106,7 +161,7 @@ class Game:
                 if player != 0:
                     original_player = self.player
                     self.player = int(player)
-                    self.draw_fig(row, col)
+                    self.draw_local_win_fig(row, col)
                     self.player = original_player
 
     """def draw_all_again(self):
@@ -121,18 +176,18 @@ class Game:
                             self.draw_fig(global_row, global_col, local_row, local_col)
                             self.player = original_player"""
 
-    def draw_fig(self, row, col):
+    def draw_local_win_fig(self, row, col):
         #X-shape
         if self.player == 1:
             #\-shape
             left_start_pos = (col * SIZE + 60, row * SIZE + 60)
             left_end_pos = (col * SIZE + SIZE - 60, row * SIZE + SIZE - 60)
-            pygame.draw.line(screen, LINE_COLOR, left_start_pos, left_end_pos, SQUARE_SIZE)
+            pygame.draw.line(screen, LINE_COLOR, left_start_pos, left_end_pos, CROSS_WIDTH)
 
             #/-shape
             right_start_pos = (col * SIZE + 60, row * SIZE + SIZE - 60)
             right_end_pos = (col * SIZE + SIZE - 60, row * SIZE + 60)
-            pygame.draw.line(screen, LINE_COLOR, right_start_pos, right_end_pos, SQUARE_SIZE)
+            pygame.draw.line(screen, LINE_COLOR, right_start_pos, right_end_pos, CROSS_WIDTH)
         #O-shape
         elif self.player == 2:
             center = (col*SIZE + SIZE//2, row*SIZE + SIZE//2)
@@ -166,7 +221,7 @@ class Game:
         global_col = mouse_x // SIZE
         global_row = mouse_y // SIZE
 
-        #stay between the defined parameters
+        #stay within the defined parameters
         if not (0 <= global_row < ROWS and 0 <= global_col < COLS):
             return None
 
@@ -184,7 +239,7 @@ class Game:
         surface.fill(ALLOWED_SQUARE_COLOR)
         screen.blit(surface, (x, y))
 
-    """def is_move_legal(self, global_row, global_col, local_row, local_col):
+    def is_move_legal(self, global_row, global_col, local_row, local_col):
         if not self.board.is_local_square_empty(global_row, global_col, local_row, local_col):
             return False
 
@@ -192,7 +247,7 @@ class Game:
             return True
         else:
             allowed_global_row, allowed_global_col = self.allowed_square
-            return (global_row, global_col) == (allowed_global_row, allowed_global_col)"""
+            return (global_row, global_col) == (allowed_global_row, allowed_global_col)
 
     def draw_hover(self):
         if self.hover is None:
@@ -213,6 +268,15 @@ class Game:
     def switch_player(self):
         self.player = self.player % 2 + 1
 
+    def reset_game(self):
+        self.board.reset_board()
+        self.player = 1
+        self.hover = None
+        self.allowed_square = None
+        self.running = True
+        self.winner = 0
+        self.winner_line_coords = None
+
 def main():
     game = Game()
     board = game.board
@@ -222,6 +286,8 @@ def main():
         game.show_lines()
         game.draw_all_again()
         game.draw_allowed_square()
+        game.draw_hover()
+        game.draw_win()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -232,6 +298,11 @@ def main():
                 pos = event.pos
                 game.hover = game.get_hovered_square(pos)
 
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    game.reset_game()
+                    print("Reset game")
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if game.hover is not None:
                     row, col = game.hover
@@ -239,11 +310,16 @@ def main():
                     local_col = (mouse_x % SIZE) // LINE_SIZE
                     local_row = (mouse_y % SIZE) // LINE_SIZE
 
-                    if board.is_empty_square(row, col):
-                        board.mark_square(row, col, game.player)
-                        game.draw_fig(row,col)
-                        game.switch_player()
+                    if board.is_empty_square(row, col) and game.running:
+                        game.play_move(row, col)
                         print(board.squares)
+
+                        winner, line_coords = board.final_state()
+
+                        if winner != 0:
+                            game.winner = winner
+                            game.winner_line_coords = line_coords
+                            game.running = False
 
                     """if game.is_move_legal(global_row, global_col, local_row, local_col):
                         board.mark_square(global_row, global_col, local_row, local_col, game.player)
@@ -251,7 +327,6 @@ def main():
                         game.switch_player()
                         print(board.squares)"""
 
-        game.draw_hover()
         pygame.display.update()
 
 main()
