@@ -4,7 +4,7 @@ import numpy as np
 
 from config import *
 
-#ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE&t=343s
+#ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Tic Tac Toe')
@@ -70,18 +70,8 @@ class Board:
     def is_empty_square(self, row, col):
         return self.squares[row][col] == 0
 
-    def get_empty_squares(self):
-        empty_squares = []
-        for row in range(ROWS):
-            for col in range(COLS):
-                if self.is_empty_square(row, col):
-                    empty_squares.append((row, col))
-
-        return empty_squares
-
     def reset_board(self):
-        self.squares = np.zeros((ROWS, COLS))
-        self.marked_squares = 0
+        self.__init__()
 
 class Game:
     def __init__(self):
@@ -96,7 +86,7 @@ class Game:
 
     def play_move(self, row, col):
         self.board.mark_square(row, col, self.player)
-        self.draw_win_fig(row, col)
+        self.draw_fig(row, col)
         self.switch_player()
 
     @staticmethod
@@ -126,10 +116,10 @@ class Game:
                 if player != 0:
                     original_player = self.player
                     self.player = int(player)
-                    self.draw_win_fig(row, col)
+                    self.draw_fig(row, col)
                     self.player = original_player
 
-    def draw_win_fig(self, row, col):
+    def draw_fig(self, row, col):
         #X-shape
         if self.player == 1:
             #\-shape
@@ -146,26 +136,6 @@ class Game:
             center = (col*SIZE + SIZE//2, row*SIZE + SIZE//2)
             pygame.draw.circle(screen, CIRCLE_COLOR, center, RADIUS, LINE_WIDTH)
 
-    def draw_fig(self, row, col):
-
-        # X-shape
-        if self.player == 1:
-            x1 = col * SIZE + PADDING
-            x2 = col * SIZE + SIZE - PADDING
-            y1 = row * SIZE + PADDING
-            y2 = row * SIZE + SIZE - PADDING
-
-            # \-shape
-            pygame.draw.line(screen, CROSS_COLOR, (x1, y1), (x2, y2), GLOBAL_LINE_WIDTH)
-            # /-shape
-            pygame.draw.line(screen, CROSS_COLOR, (x1, y2), (x2, y1), GLOBAL_LINE_WIDTH)
-
-        # O-shape
-        elif self.player == 2:
-            center = (col * SIZE + SIZE // 2, row * SIZE + SIZE // 2)
-            pygame.draw.circle(screen, CIRCLE_COLOR, center,
-                               RADIUS, GLOBAL_LINE_WIDTH)
-
     @staticmethod
     def get_hovered_square(mouse_pos):
         mouse_x, mouse_y = mouse_pos
@@ -177,25 +147,6 @@ class Game:
             return None
 
         return global_row, global_col
-
-    def draw_allowed_square(self):
-        if self.allowed_square is None:
-            return
-
-        global_row, global_col = self.allowed_square
-        x = global_col * SIZE
-        y = global_row * SIZE
-
-        surface = pygame.Surface((SIZE, SIZE), pygame.SRCALPHA)
-        surface.fill(ALLOWED_SQUARE_COLOR)
-        screen.blit(surface, (x, y))
-
-    def is_move_legal(self, global_row, global_col):
-        if self.allowed_square is None:
-            return True
-        else:
-            allowed_global_row, allowed_global_col = self.allowed_square
-            return (global_row, global_col) == (allowed_global_row, allowed_global_col)
 
     def draw_hover(self):
         if self.hover is None:
@@ -234,7 +185,6 @@ def main():
         game.draw_hover()
         game.show_lines()
         game.draw_all_again()
-        game.draw_allowed_square()
         game.draw_win()
 
         for event in pygame.event.get():
