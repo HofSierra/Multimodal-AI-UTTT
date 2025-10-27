@@ -1,23 +1,40 @@
-#todo: dirty rects might need to be implemented to clear the local board and render the winner of a square
-
 import sys
 import pygame
 import numpy as np
 
 from config import *
 
-#ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE&t=343s
+#ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Ultimate Tic Tac Toe')
 screen.fill(BG_COLOR)
 
+# method to check if local/global board (3x3) has been won by any player
+def check_win(grid):
+
+    for i in range(3):
+
+        # Check each row
+        if grid[i, 0] == grid[i, 1] == grid[i, 2] != 0:
+            return grid[i, 0]
+
+        # Check each column
+        if grid[0, i] == grid[1, i] == grid[2, i] != 0:
+            return grid[0, i]
+
+    #Check both diagonals
+    if (grid[0, 0] == grid[1, 1] == grid[2, 2] != 0) or (grid[2, 0] == grid[1, 1] == grid[0, 2] != 0):
+        return grid[1, 1]
+
+    return 0
+
 class Board:
     def __init__(self):
-        #self.squares = np.zeros((ROWS, COLS))
         self.squares = np.zeros((ROWS, COLS, ROWS, COLS))
+        self.global_squares = np.zeros((ROWS, COLS))
         self.empty_squares = self.squares
-        self.marked_squares = 0
+        self.marked_squares = np.zeros((ROWS, COLS))
 
         #debug -> initial state
         print(self.squares)
@@ -60,12 +77,9 @@ class Board:
 
         return 0, None
 
-    """def mark_square(self, row, col, player):
-        self.squares[row][col] = player
-        self.marked_squares += 1"""
-
     def mark_square(self, global_row, global_col, local_row, local_col, player):
         self.squares[global_row][global_col][local_row][local_col] = player
+        self.marked_squares[global_row][global_col]+=1
 
     def is_local_square_empty(self, global_row, global_col, local_row, local_col):
         return self.squares[global_row][global_col][local_row][local_col] == 0
@@ -79,17 +93,9 @@ class Board:
     def is_empty_square(self, row, col):
         return self.squares[row][col] == 0
 
-    def get_empty_squares(self):
-        empty_squares = []
-        for row in range(ROWS):
-            for col in range(COLS):
-                if self.is_empty_square(row, col):
-                    empty_squares.append((row, col))
-
-        return empty_squares
-
     def reset_board(self):
         self.squares = np.zeros((ROWS, COLS, ROWS, COLS))
+        self.global_squares = np.zeros((ROWS, COLS))
         self.marked_squares = 0
 
 class Game:
@@ -102,11 +108,6 @@ class Game:
         self.winner = 0
         self.winner_line_coords = None
         self.show_lines()
-
-    def play_move(self, row, col):
-        self.board.mark_square(row, col, self.player)
-        self.draw_local_win_fig(row, col)
-        self.switch_player()
 
     def show_lines(self):
 
@@ -121,7 +122,6 @@ class Game:
         pygame.draw.line(screen, LINE_COLOR, (0, HEIGHT-SIZE),
                          (WIDTH, HEIGHT-SIZE), LINE_WIDTH)
 
-        #logic is still sort of missing so commenting it out
         #local boards
         local_lines_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         for row in range(ROWS):
@@ -130,26 +130,26 @@ class Game:
                 board_y_offset = row * SIZE
 
                 is_allowed = self.allowed_square is None or (row, col) == self.allowed_square
-                draw_color = LINE_COLOR if is_allowed else DENIED_SQUARE_LINE_COLOR
+                draw_color = LINE_COLOR if is_allowed else DENIED_BOARD_LINE_COLOR
 
                 pygame.draw.line(local_lines_surface, draw_color,
-                                 (board_x_offset + LINE_SIZE, board_y_offset),
-                                 (board_x_offset + LINE_SIZE, board_y_offset + SIZE),
+                                 (board_x_offset + LOCAL_SIZE, board_y_offset),
+                                 (board_x_offset + LOCAL_SIZE, board_y_offset + SIZE),
                                  LOCAL_LINE_WIDTH)
 
                 pygame.draw.line(local_lines_surface, draw_color,
-                                 (board_x_offset + 2*LINE_SIZE, board_y_offset),
-                                 (board_x_offset + 2*LINE_SIZE, board_y_offset + SIZE),
+                                 (board_x_offset + 2 * LOCAL_SIZE, board_y_offset),
+                                 (board_x_offset + 2 * LOCAL_SIZE, board_y_offset + SIZE),
                                  LOCAL_LINE_WIDTH)
 
                 pygame.draw.line(local_lines_surface, draw_color,
-                                 (board_x_offset, board_y_offset + LINE_SIZE),
-                                 (board_x_offset + SIZE, board_y_offset + LINE_SIZE),
+                                 (board_x_offset, board_y_offset + LOCAL_SIZE),
+                                 (board_x_offset + SIZE, board_y_offset + LOCAL_SIZE),
                                  LOCAL_LINE_WIDTH)
 
                 pygame.draw.line(local_lines_surface, draw_color,
-                                 (board_x_offset, board_y_offset + 2*LINE_SIZE),
-                                 (board_x_offset + SIZE, board_y_offset + 2*LINE_SIZE),
+                                 (board_x_offset, board_y_offset + 2 * LOCAL_SIZE),
+                                 (board_x_offset + SIZE, board_y_offset + 2 * LOCAL_SIZE),
                                  LOCAL_LINE_WIDTH)
 
         screen.blit(local_lines_surface, (0, 0))
@@ -160,16 +160,6 @@ class Game:
             pygame.draw.line(screen, LINE_COLOR, initial_pos, end_pos, CROSS_WIDTH)
 
     #need to clear the whole board for the hover ui so everything needs to be redrawn
-    """def draw_all_again(self):
-        for row in range(ROWS):
-            for col in range(COLS):
-                player = self.board.squares[row][col]
-                if player != 0:
-                    original_player = self.player
-                    self.player = int(player)
-                    self.draw_local_win_fig(row, col)
-                    self.player = original_player"""
-
     def draw_all_again(self):
         for global_row in range(ROWS):
             for global_col in range(COLS):
@@ -182,7 +172,8 @@ class Game:
                             self.draw_local_fig(global_row, global_col, local_row, local_col)
                             self.player = original_player
 
-    def draw_local_win_fig(self, row, col):
+    # function to draw X or O on global board, when a local board has been won
+    def draw_global_fig(self, row, col):
         #X-shape
         if self.player == 1:
             #\-shape
@@ -199,17 +190,18 @@ class Game:
             center = (col*SIZE + SIZE//2, row*SIZE + SIZE//2)
             pygame.draw.circle(screen, CIRCLE_COLOR, center, RADIUS, LINE_WIDTH)
 
+    #function to draw X or O on local boards
     def draw_local_fig(self, global_row, global_col, local_row, local_col):
-        local_center_x = global_col * SIZE + local_col * LINE_SIZE + LINE_SIZE // 2
-        local_center_y = global_row * SIZE + local_row * LINE_SIZE + LINE_SIZE // 2
-        padding = LINE_SIZE * 0.25
+        local_center_x = global_col * SIZE + local_col * LOCAL_SIZE + LOCAL_SIZE // 2
+        local_center_y = global_row * SIZE + local_row * LOCAL_SIZE + LOCAL_SIZE // 2
+        padding = LOCAL_SIZE * 0.25
 
         # X-shape
         if self.player == 1:
-            x1 = local_center_x - LINE_SIZE // 2 + padding
-            x2 = local_center_x + LINE_SIZE // 2 - padding
-            y1 = local_center_y - LINE_SIZE // 2 + padding
-            y2 = local_center_y + LINE_SIZE // 2 - padding
+            x1 = local_center_x - LOCAL_SIZE // 2 + padding
+            x2 = local_center_x + LOCAL_SIZE // 2 - padding
+            y1 = local_center_y - LOCAL_SIZE // 2 + padding
+            y2 = local_center_y + LOCAL_SIZE // 2 - padding
             local_width = LOCAL_LINE_WIDTH + 2
 
             # \-shape
@@ -222,7 +214,8 @@ class Game:
             pygame.draw.circle(screen, CIRCLE_COLOR, (local_center_x, local_center_y),
                                LOCAL_RADIUS, LOCAL_LINE_WIDTH)
 
-    def get_hovered_square(self, mouse_pos):
+    @staticmethod
+    def get_hovered_square(mouse_pos):
         mouse_x, mouse_y = mouse_pos
         global_col = mouse_x // SIZE
         global_row = mouse_y // SIZE
@@ -242,7 +235,7 @@ class Game:
         y = global_row * SIZE
 
         surface = pygame.Surface((SIZE, SIZE), pygame.SRCALPHA)
-        surface.fill(ALLOWED_SQUARE_COLOR)
+        surface.fill(ALLOWED_BOARD_COLOR)
         screen.blit(surface, (x, y))
 
     def is_move_legal(self, global_row, global_col, local_row, local_col):
@@ -313,25 +306,15 @@ def main():
                 if game.hover is not None:
                     global_row, global_col = game.hover
                     mouse_x, mouse_y = event.pos
-                    local_col = (mouse_x % SIZE) // LINE_SIZE
-                    local_row = (mouse_y % SIZE) // LINE_SIZE
-
-                    """if board.is_empty_square(row, col) and game.running:
-                        game.play_move(row, col)
-                        print(board.squares)
-
-                        winner, line_coords = board.final_state()
-
-                        if winner != 0:
-                            game.winner = winner
-                            game.winner_line_coords = line_coords
-                            game.running = False"""
+                    local_col = (mouse_x % SIZE) // LOCAL_SIZE
+                    local_row = (mouse_y % SIZE) // LOCAL_SIZE
 
                     if game.is_move_legal(global_row, global_col, local_row, local_col):
                         board.mark_square(global_row, global_col, local_row, local_col, game.player)
+                        board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
                         game.allowed_square = (local_row, local_col)
                         game.switch_player()
-                        print(board.squares)
+                        print(board.global_squares)
 
         pygame.display.update()
 
