@@ -267,7 +267,12 @@ class Game:
 
     def reset(self):
         self.board.reset()
-        self.__init__()
+        self.player = 1
+        self.hover = None
+        self.allowed_square = None
+        self.running = True
+        self.winner = 0
+        self.winner_line_coords = None
 
 def main():
     game = Game()
