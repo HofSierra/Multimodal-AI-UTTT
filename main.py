@@ -27,6 +27,11 @@ def check_win(grid):
     if (grid[0, 0] == grid[1, 1] == grid[2, 2] != 0) or (grid[2, 0] == grid[1, 1] == grid[0, 2] != 0):
         return grid[1, 1]
 
+    # draw
+    if np.all(grid != 0):
+        return -1
+
+    # ongoing
     return 0
 
 class Board:
@@ -36,14 +41,11 @@ class Board:
         self.empty_squares = self.squares
         self.marked_squares = np.zeros((ROWS, COLS))
 
-        #debug -> initial state
-        print(self.squares)
-
-    def final_state(self):
+    def final_global_state(self):
         #vertical wins
         for col in range(COLS):
-            if self.squares[0][col] == self.squares[1][col] == self.squares[2][col] != 0:
-                winner = self.squares[0][col]
+            if self.global_squares[0][col] == self.global_squares[1][col] == self.global_squares[2][col] != 0:
+                winner = self.global_squares[0][col]
                 x = col * SIZE + SIZE // 2
                 initial_pos = (x, 20)
                 end_pos = (x, HEIGHT - 20)
@@ -52,24 +54,23 @@ class Board:
 
         #horizontal wins
         for row in range(ROWS):
-            if self.squares[row][0] == self.squares[row][1] == self.squares[row][2] != 0:
-                winner = self.squares[row][0]
+            if self.global_squares[row][0] == self.global_squares[row][1] == self.global_squares[row][2] != 0:
+                winner = self.global_squares[row][0]
                 y = row * SIZE + SIZE // 2
                 initial_pos = (20, y)
                 end_pos = (WIDTH - 20, y)
                 line_coords = (initial_pos, end_pos)
-                #pygame.draw.line(screen, LINE_COLOR, initial_pos, end_pos, LINE_WIDTH)
                 return winner, line_coords
 
         #diagonal wins
-        if self.squares[0][0] == self.squares[1][1] == self.squares[2][2] != 0:
-            winner = self.squares[1][1]
+        if self.global_squares[0][0] == self.global_squares[1][1] == self.global_squares[2][2] != 0:
+            winner = self.global_squares[1][1]
             initial_pos = (20, 20)
             end_pos = (WIDTH - 20, HEIGHT - 20)
             line_coords = (initial_pos, end_pos)
             return winner, line_coords
-        if self.squares[2][0] == self.squares[1][1] == self.squares[0][2] != 0:
-            winner = self.squares[1][1]
+        if self.global_squares[2][0] == self.global_squares[1][1] == self.global_squares[0][2] != 0:
+            winner = self.global_squares[1][1]
             initial_pos = (20, HEIGHT - 20)
             end_pos = (WIDTH - 20, 20)
             line_coords = (initial_pos, end_pos)
@@ -126,6 +127,10 @@ class Game:
         local_lines_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         for row in range(ROWS):
             for col in range(COLS):
+                local_winner = self.board.global_squares[row][col]
+                if local_winner != -1 and local_winner != 0:
+                    continue
+
                 board_x_offset = col * SIZE
                 board_y_offset = row * SIZE
 
@@ -157,20 +162,27 @@ class Game:
     def draw_win(self):
         if self.winner_line_coords is not None:
             initial_pos, end_pos = self.winner_line_coords
-            pygame.draw.line(screen, LINE_COLOR, initial_pos, end_pos, CROSS_WIDTH)
+            pygame.draw.line(screen, WIN_LINE_COLOR, initial_pos, end_pos, CROSS_WIDTH)
 
     #need to clear the whole board for the hover ui so everything needs to be redrawn
     def draw_all_again(self):
         for global_row in range(ROWS):
             for global_col in range(COLS):
-                for local_row in range(ROWS):
-                    for local_col in range(COLS):
-                        player = self.board.squares[global_row][global_col][local_row][local_col]
-                        if player != 0:
-                            original_player = self.player
-                            self.player = int(player)
-                            self.draw_local_fig(global_row, global_col, local_row, local_col)
-                            self.player = original_player
+                local_winner = self.board.global_squares[global_row, global_col]
+                if local_winner == -1 or local_winner == 0:
+                    for local_row in range(ROWS):
+                        for local_col in range(COLS):
+                            player = self.board.squares[global_row][global_col][local_row][local_col]
+                            if player != 0:
+                                original_player = self.player
+                                self.player = int(player)
+                                self.draw_local_fig(global_row, global_col, local_row, local_col)
+                                self.player = original_player
+                elif local_winner in [1, 2]:
+                    original_player = self.player
+                    self.player = int(local_winner)
+                    self.draw_global_fig(global_row, global_col)
+                    self.player = original_player
 
     # function to draw X or O on global board, when a local board has been won
     def draw_global_fig(self, row, col):
@@ -236,7 +248,8 @@ class Game:
 
         surface = pygame.Surface((SIZE, SIZE), pygame.SRCALPHA)
         surface.fill(ALLOWED_BOARD_COLOR)
-        screen.blit(surface, (x, y))
+        if self.running:
+            screen.blit(surface, (x, y))
 
     def is_move_legal(self, global_row, global_col, local_row, local_col):
         if not self.board.is_local_square_empty(global_row, global_col, local_row, local_col):
@@ -283,9 +296,9 @@ def main():
     while True:
         screen.fill(BG_COLOR)
         game.draw_hover()
+        game.draw_allowed_square()
         game.show_lines()
         game.draw_all_again()
-        game.draw_allowed_square()
         game.draw_win()
 
         for event in pygame.event.get():
@@ -309,10 +322,22 @@ def main():
                     local_col = (mouse_x % SIZE) // LOCAL_SIZE
                     local_row = (mouse_y % SIZE) // LOCAL_SIZE
 
-                    if game.is_move_legal(global_row, global_col, local_row, local_col):
+                    if game.is_move_legal(global_row, global_col, local_row, local_col) and game.running:
                         board.mark_square(global_row, global_col, local_row, local_col, game.player)
                         board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
-                        game.allowed_square = (local_row, local_col)
+
+                        global_winner, line_coords = board.final_global_state()
+                        if global_winner != 0:
+                            game.winner = global_winner
+                            game.winner_line_coords = line_coords
+                            game.running = False
+
+                        # free play
+                        next_g_row, next_g_col = local_row, local_col
+                        if board.global_squares[next_g_row, next_g_col] != 0:
+                            game.allowed_square = None
+                        else:
+                            game.allowed_square = (next_g_row, next_g_col)
                         game.switch_player()
                         print(board.global_squares)
 
