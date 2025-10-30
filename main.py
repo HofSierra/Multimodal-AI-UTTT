@@ -241,6 +241,8 @@ class Game:
             return False
 
         if self.allowed_square is None:
+            if self.board.global_squares[global_row, global_col]!=0:
+                return False
             return True
         else:
             allowed_global_row, allowed_global_col = self.allowed_square
