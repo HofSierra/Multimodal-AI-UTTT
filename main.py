@@ -2,7 +2,11 @@ import sys
 import pygame
 import numpy as np
 
+import TTT_bot
+import copy
+
 from config import *
+
 
 #ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE
 pygame.init()
@@ -124,9 +128,9 @@ class Game:
         local_lines_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         for row in range(ROWS):
             for col in range(COLS):
-                local_winner = self.board.global_squares[row][col]
-                if local_winner != -1 and local_winner != 0:
-                    continue
+                # local_winner = self.board.global_squares[row][col]
+                # if local_winner != -1 and local_winner != 0:
+                #     continue
 
                 board_x_offset = col * SIZE
                 board_y_offset = row * SIZE
@@ -166,16 +170,16 @@ class Game:
         for global_row in range(ROWS):
             for global_col in range(COLS):
                 local_winner = self.board.global_squares[global_row, global_col]
-                if local_winner == -1 or local_winner == 0:
-                    for local_row in range(ROWS):
-                        for local_col in range(COLS):
-                            player = self.board.squares[global_row][global_col][local_row][local_col]
-                            if player != 0:
-                                original_player = self.player
-                                self.player = int(player)
-                                self.draw_local_fig(global_row, global_col, local_row, local_col)
-                                self.player = original_player
-                elif local_winner in [1, 2]:
+                # if local_winner == -1 or local_winner == 0:
+                for local_row in range(ROWS):
+                    for local_col in range(COLS):
+                        player = self.board.squares[global_row][global_col][local_row][local_col]
+                        if player != 0:
+                            original_player = self.player
+                            self.player = int(player)
+                            self.draw_local_fig(global_row, global_col, local_row, local_col)
+                            self.player = original_player
+                if local_winner in [1, 2]:
                     original_player = self.player
                     self.player = int(local_winner)
                     self.draw_global_fig(global_row, global_col)
@@ -236,6 +240,9 @@ class Game:
         if self.running:
             screen.blit(surface, (x, y))
 
+    def copy(self):
+        return copy.deepcopy(self)
+
     def is_move_legal(self, global_row, global_col, local_row, local_col):
         if not self.board.is_local_square_empty(global_row, global_col, local_row, local_col):
             return False
@@ -247,6 +254,37 @@ class Game:
         else:
             allowed_global_row, allowed_global_col = self.allowed_square
             return (global_row, global_col) == (allowed_global_row, allowed_global_col)
+
+    def get_legal_moves(self) -> list[tuple[int, int, int, int]]:
+        legal_moves = []
+        if self.allowed_square is not None:
+            # Play in a specific local board
+            g_row, g_col = self.allowed_square
+            for row in range(ROWS):
+                for col in range(COLS):
+                    if self.is_move_legal(g_row, g_col, row, col):
+                        legal_moves.append((g_row, g_col, row, col))
+        else:
+            # Play anywhere
+            for g_row in range(ROWS):
+                for g_col in range(COLS):
+                    for row in range(ROWS):
+                        for col in range(COLS):
+                            if self.is_move_legal(g_row, g_col, row, col):
+                                legal_moves.append((g_row, g_col, row, col))
+
+        return legal_moves
+
+    def is_game_over(self):
+        if check_win(self.board.global_squares) == 1 or check_win(self.board.global_squares) == 2:
+            return True
+        return False
+
+    def get_winner(self):
+        return check_win(self.board.global_squares)
+
+    def get_board(self):
+        return self.board.global_squares
 
     def draw_hover(self):
         if self.hover is None:
@@ -302,7 +340,37 @@ def main():
                     game.reset()
                     print("Reset game")
 
+            if game.player == 2 and game.running:
+                game_copy = game.copy()
+                bot_move = TTT_bot.get_bot_move(game_copy, game.player)
+                board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
+                global_row, global_col = bot_move[0], bot_move[1]
+                local_row, local_col = bot_move[2], bot_move[3]
+                board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
+
+                # win check
+                global_winner, line_coords = board.final_global_state()
+                if global_winner != 0:
+                    game.winner = global_winner
+                    game.winner_line_coords = line_coords
+                    game.running = False
+
+                # free play
+                next_g_row, next_g_col = local_row, local_col
+                if board.global_squares[next_g_row, next_g_col] != 0:
+                    game.allowed_square = None
+                else:
+                    game.allowed_square = (next_g_row, next_g_col)
+
+                game.switch_player()
+                print(board.global_squares)
+
             if event.type == pygame.MOUSEBUTTONDOWN:
+
+                moves = game.get_legal_moves()
+                print(len(moves))
+
+
                 if game.hover is not None:
                     global_row, global_col = game.hover
                     mouse_x, mouse_y = event.pos
