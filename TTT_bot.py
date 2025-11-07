@@ -21,72 +21,36 @@ def check_win(grid):
     # Ongoing
     return 0
 
-# Evaluate the current game state
-def evaluate(game, player):
+class UltimateTTTBot:
+    def __init__(self, player, depth = 3):
+        self.player = player
+        self.opponent = 1 if player == 2 else 2
+        self.depth = depth
 
-    opponent = 1 if player == 2 else 2
-    winner = game.get_winner()
+    def get_bot_move(self, game):
+        _, move = self.minimax(game, self.depth, -math.inf, math.inf, True)
+        return move
 
-    if winner == player:
-        return 1000
-    elif winner == opponent:
-        return -1000
+    def minimax(self, game, depth, alpha, beta, maximizing_player):
+        if depth == 0 or game.is_game_over():
+            return self.evaluate(game), None
 
-    score = 0
-    # Local Board Evaluation
+        legal_moves = game.get_legal_moves()
+        if not legal_moves:
+            return self.evaluate(game), None
 
-    for row in range(ROWS):
-        for col in range(COLS):
-            board = game.board.squares[row][col]
-            if check_win(board) == player:
-                score += 100
-            elif check_win(board) == opponent:
-                score -= 100
-            else:
-                score += evaluate_local_board(board, player)
+        best_move = None
+        current_player = self.player if maximizing_player else self.opponent
+        next_player = not maximizing_player
 
-    return score
+        if maximizing_player:
+            value = -math.inf
+        else:
+            value = math.inf
 
-# Evaluate a Local Board
-def evaluate_local_board(board, player):
-    opponent = 1 if player == 2 else 2
-    lines = [
-        [(0,0), (0,1), (0,2)],
-        [(1,0), (1,1), (1,2)],
-        [(2,0), (2,1), (2,2)],
-        [(0,0), (1,0), (2,0)],
-        [(0,1), (1,1), (2,1)],
-        [(0,2), (1,2), (2,2)],
-        [(0,0), (1,1), (2,2)],
-        [(0,2), (1,1), (2,0)],
-    ]
-
-    score = 0
-    for line in lines:
-        values = [board[r][c] for r, c in line]
-        if opponent not in values:
-            score += 1
-        if values.count(player) == 2 and 0 in values:
-            score += 5
-    return score
-
-def minimax(game, depth, alpha, beta, maximizing_player, player):
-    opponent = 1 if player == 2 else 2
-
-    if depth == 0 or game.is_game_over():
-        return evaluate(game, player), None
-
-    legal_moves = game.get_legal_moves()
-    if not legal_moves:
-        return evaluate(game, player), None
-
-    best_move = None
-
-    if maximizing_player:
-        value = -math.inf
         for move in legal_moves:
             new_game = game.copy()
-            new_game.board.mark_square(move[0], move[1], move[2], move[3], player)
+            new_game.board.mark_square(move[0], move[1], move[2], move[3], current_player)
             g_row, g_col, l_row, l_col = move
             new_game.board.global_squares[g_row, g_col] = check_win(new_game.board.squares[g_row, g_col])
             if new_game.board.global_squares[l_row, l_col] != 0:
@@ -94,27 +58,81 @@ def minimax(game, depth, alpha, beta, maximizing_player, player):
             else:
                 new_game.allowed_square = (l_row, l_col)
 
-            eval_score, _ = minimax(new_game, depth - 1, alpha, beta, False, player)
-            if eval_score > value:
-                value, best_move = eval_score, move
-            alpha = max(alpha, value)
-            if beta <= alpha:
-                break
+            # need to switch player so that the function does not mistake the next move as its own
+            new_game.switch_player()
+
+            eval_score, _ = self.minimax(new_game, depth - 1, alpha, beta, next_player)
+
+            if maximizing_player:
+                if eval_score > value:
+                    value, best_move = eval_score, move
+                alpha = max(alpha, value)
+                if beta <= alpha:
+                    break
+            else:
+                if eval_score < value:
+                    value, best_move = eval_score, move
+                alpha = min(alpha, value)
+                if beta <= alpha:
+                    break
+
         return value, best_move
 
-    else:
-        value = math.inf
-        for move in legal_moves:
-            new_game = game.copy()
-            new_game.board.mark_square(move[0], move[1], move[2], move[3], opponent)
-            eval_score, _ = minimax(new_game, depth - 1, alpha, beta, True, player)
-            if eval_score < value:
-                value, best_move = eval_score, move
-            beta = min(beta, value)
-            if beta <= alpha:
-                break
-        return value, best_move
+    # Evaluate the current game state
+    def evaluate(self, game):
+        winner = game.get_winner()
 
-def get_bot_move(game, player, depth=3):
-    _, move = minimax(game, depth, -math.inf, math.inf, True, player)
-    return move
+        if winner == self.player:
+            return 1000000
+        elif winner == self.opponent:
+            return -1000000
+
+        score = 0
+
+        # Global Board Evaluation
+        global_board = game.board.global_squares
+        score += self.evaluate_global_board(global_board)
+
+        # Local Board Evaluation
+        for row in range(ROWS):
+            for col in range(COLS):
+                board = game.board.squares[row][col]
+                if check_win(board) == self.player:
+                    score += 100
+                elif check_win(board) == self.opponent:
+                    score -= 100
+                else:
+                    score += self.evaluate_local_board(board)
+        return score
+
+    # General Evaluation
+    def evaluate_lines(self, board):
+        lines = [
+            [(0,0), (0,1), (0,2)],
+            [(1,0), (1,1), (1,2)],
+            [(2,0), (2,1), (2,2)],
+            [(0,0), (1,0), (2,0)],
+            [(0,1), (1,1), (2,1)],
+            [(0,2), (1,2), (2,2)],
+            [(0,0), (1,1), (2,2)],
+            [(0,2), (1,1), (2,0)],
+        ]
+
+        score = 0
+        for line in lines:
+            values = [board[r][c] for r, c in line]
+            if values.count(self.player) == 2 and 0 in values:
+                score += 1
+            elif values.count(self.opponent) == 2 and 0 in values:
+                score -= 1
+            elif values.count(self.player) == 1 and values.count(0) == 2:
+                score += 0.1
+            elif values.count(self.opponent) == 1 and values.count(0) == 2:
+                score -= 0.1
+        return score
+
+    def evaluate_global_board(self, board):
+        return self.evaluate_lines(board) * 500
+
+    def evaluate_local_board(self, board):
+        return self.evaluate_lines(board) * 5

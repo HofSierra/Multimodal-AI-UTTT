@@ -1,18 +1,18 @@
 import sys
 import pygame
 import numpy as np
-
-import TTT_bot
 import copy
+import time
 
+from TTT_bot import UltimateTTTBot
 from config import *
-
 
 #ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Ultimate Tic Tac Toe')
 screen.fill(BG_COLOR)
+images_folder = "screens"
 
 # method to check if local/global board (3x3) has been won by any player
 def check_win(grid):
@@ -48,6 +48,33 @@ def get_hovered_square(mouse_pos):
         return None
 
     return global_row, global_col
+
+def set_game_mode(key, bot_enabled, game):
+    if key == pygame.K_0:
+        bot_enabled[1] = True
+        bot_enabled[2] = True
+        mode_name = "Bot vs Bot"
+
+    elif key == pygame.K_1:
+        bot_enabled[1] = False # Human
+        bot_enabled[2] = True
+        mode_name = "Human vs Bot"
+
+    elif key == pygame.K_2:
+        bot_enabled[1] = True
+        bot_enabled[2] = False # Human
+        mode_name = "Bot vs Human"
+
+    elif key == pygame.K_3:
+        bot_enabled[1] = False
+        bot_enabled[2] = False
+        mode_name = "Human vs Human"
+    else:
+        return
+
+    # game.reset()
+    print(f"\nNew Mode: {mode_name}")
+    return True
 
 class Board:
     def __init__(self):
@@ -317,6 +344,10 @@ class Game:
 def main():
     game = Game()
     board = game.board
+    player_1 = UltimateTTTBot(1) # X
+    player_2 = UltimateTTTBot(2) # O
+    bots = {1: player_1, 2: player_2}
+    bot_enabled = {1: False, 2: False}
 
     while True:
         screen.fill(BG_COLOR)
@@ -325,6 +356,37 @@ def main():
         game.show_lines()
         game.draw_all_again()
         game.draw_win()
+
+        current_player = game.player
+        is_bot_turn = bot_enabled[current_player]
+
+        # bot logic needs to run every frame and not wait for human input
+        if game.running and is_bot_turn:
+            current_bot = bots[current_player]
+            # time.sleep(0.7)
+            game_copy = game.copy()
+            bot_move = current_bot.get_bot_move(game_copy)
+            board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
+            global_row, global_col = bot_move[0], bot_move[1]
+            local_row, local_col = bot_move[2], bot_move[3]
+            board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
+
+            # win check
+            global_winner, line_coords = board.final_global_state()
+            if global_winner != 0:
+                game.winner = global_winner
+                game.winner_line_coords = line_coords
+                game.running = False
+
+            # free play
+            next_g_row, next_g_col = local_row, local_col
+            if board.global_squares[next_g_row, next_g_col] != 0:
+                game.allowed_square = None
+            else:
+                game.allowed_square = (next_g_row, next_g_col)
+
+            game.switch_player()
+            print(board.global_squares)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -336,42 +398,17 @@ def main():
                 game.hover = get_hovered_square(pos)
 
             if event.type == pygame.KEYDOWN:
+                set_game_mode(event.key, bot_enabled, game)
                 if event.key == pygame.K_r:
                     game.reset()
                     print("Reset game")
-
-            if game.player == 2 and game.running:
-                game_copy = game.copy()
-                bot_move = TTT_bot.get_bot_move(game_copy, game.player)
-                board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
-                global_row, global_col = bot_move[0], bot_move[1]
-                local_row, local_col = bot_move[2], bot_move[3]
-                board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
-
-                # win check
-                global_winner, line_coords = board.final_global_state()
-                if global_winner != 0:
-                    game.winner = global_winner
-                    game.winner_line_coords = line_coords
-                    game.running = False
-
-                # free play
-                next_g_row, next_g_col = local_row, local_col
-                if board.global_squares[next_g_row, next_g_col] != 0:
-                    game.allowed_square = None
-                else:
-                    game.allowed_square = (next_g_row, next_g_col)
-
-                game.switch_player()
-                print(board.global_squares)
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+                    print("Quit pygame")
 
             if event.type == pygame.MOUSEBUTTONDOWN:
-
-                moves = game.get_legal_moves()
-                print(len(moves))
-
-
-                if game.hover is not None:
+                if game.running and not bot_enabled[game.player] and game.hover is not None:
                     global_row, global_col = game.hover
                     mouse_x, mouse_y = event.pos
                     local_col = (mouse_x % SIZE) // LOCAL_SIZE
