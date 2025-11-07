@@ -1,8 +1,9 @@
-import sys
+import sys, os
 import pygame
 import numpy as np
 import copy
 import time
+import random
 
 from TTT_bot import UltimateTTTBot
 from config import *
@@ -75,6 +76,12 @@ def set_game_mode(key, bot_enabled, game):
     # game.reset()
     print(f"\nNew Mode: {mode_name}")
     return True
+
+def take_screenshots(screen, screenshot_count):
+    filename = os.path.join(images_folder, f"ultimate_ttt_screenshot_{screenshot_count}.png")
+    pygame.image.save(screen, filename)
+    print(f"Screenshot saved to {filename}")
+    return time.time(), screenshot_count + 1
 
 class Board:
     def __init__(self):
@@ -313,6 +320,7 @@ class Game:
     def get_board(self):
         return self.board.global_squares
 
+    """
     def draw_hover(self):
         if self.hover is None:
             return
@@ -328,6 +336,7 @@ class Game:
         surface.fill(HOVER_COLOR)
 
         screen.blit(surface, (x, y))
+    """
 
     def switch_player(self):
         self.player = self.player % 2 + 1
@@ -346,12 +355,15 @@ def main():
     board = game.board
     player_1 = UltimateTTTBot(1) # X
     player_2 = UltimateTTTBot(2) # O
+    # one bot needs to be random or else there will be no variation
     bots = {1: player_1, 2: player_2}
     bot_enabled = {1: False, 2: False}
 
+    last_screenshot = time.time()
+    screenshot_count = 0
+
     while True:
         screen.fill(BG_COLOR)
-        game.draw_hover()
         game.draw_allowed_square()
         game.show_lines()
         game.draw_all_again()
@@ -360,10 +372,14 @@ def main():
         current_player = game.player
         is_bot_turn = bot_enabled[current_player]
 
-        # bot logic needs to run every frame and not wait for human input
+        if (time.time() - last_screenshot) >= 15 and game.running:
+            last_screenshot, screenshot_count = take_screenshots(screen, screenshot_count)
+
+        # bot logic needs to run every frame and not wait for input
         if game.running and is_bot_turn:
             current_bot = bots[current_player]
-            # time.sleep(0.7)
+            random_delay = max(0.2, (0.5 + random.uniform(-0.3, 0.3)))
+            time.sleep(random_delay)
             game_copy = game.copy()
             bot_move = current_bot.get_bot_move(game_copy)
             board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
@@ -400,12 +416,12 @@ def main():
             if event.type == pygame.KEYDOWN:
                 set_game_mode(event.key, bot_enabled, game)
                 if event.key == pygame.K_r:
-                    game.reset()
                     print("Reset game")
+                    game.reset()
                 if event.key == pygame.K_q:
+                    print("Quit pygame")
                     pygame.quit()
                     sys.exit()
-                    print("Quit pygame")
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if game.running and not bot_enabled[game.player] and game.hover is not None:
@@ -436,5 +452,15 @@ def main():
                         print(board.global_squares)
 
         pygame.display.update()
+
+        if not game.running and bot_enabled[1] and bot_enabled[2]:
+            print("Game Over")
+            end_time = time.time() + 10
+            while time.time() < end_time:
+                game.draw_all_again()
+                game.draw_win()
+                pygame.display.update()
+            game.reset()
+            print("Resetting game")
 
 main()
