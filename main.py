@@ -2,10 +2,10 @@ import sys, os
 import pygame
 import numpy as np
 import copy
-import time
+import time, json
 import random
 
-from TTT_bot import UltimateTTTBot
+from TTT_bot import UltimateTTTBot, RandomTTTBot
 from config import *
 
 #ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE
@@ -14,6 +14,8 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Ultimate Tic Tac Toe')
 screen.fill(BG_COLOR)
 images_folder = "screens"
+log_file_path = "logs/bot_moves.jsonl"
+SCREENSHOT_COUNT = 0
 
 # method to check if local/global board (3x3) has been won by any player
 def check_win(grid):
@@ -50,25 +52,25 @@ def get_hovered_square(mouse_pos):
 
     return global_row, global_col
 
-def set_game_mode(key, bot_enabled, game):
+def set_game_mode(key, are_bots_enabled):
     if key == pygame.K_0:
-        bot_enabled[1] = True
-        bot_enabled[2] = True
+        are_bots_enabled[1] = True
+        are_bots_enabled[2] = True
         mode_name = "Bot vs Bot"
 
     elif key == pygame.K_1:
-        bot_enabled[1] = False # Human
-        bot_enabled[2] = True
+        are_bots_enabled[1] = False # Human
+        are_bots_enabled[2] = True
         mode_name = "Human vs Bot"
 
     elif key == pygame.K_2:
-        bot_enabled[1] = True
-        bot_enabled[2] = False # Human
+        are_bots_enabled[1] = True
+        are_bots_enabled[2] = False # Human
         mode_name = "Bot vs Human"
 
     elif key == pygame.K_3:
-        bot_enabled[1] = False
-        bot_enabled[2] = False
+        are_bots_enabled[1] = False
+        are_bots_enabled[2] = False
         mode_name = "Human vs Human"
     else:
         return
@@ -77,11 +79,104 @@ def set_game_mode(key, bot_enabled, game):
     print(f"\nNew Mode: {mode_name}")
     return True
 
-def take_screenshots(screen, screenshot_count):
-    filename = os.path.join(images_folder, f"ultimate_ttt_screenshot_{screenshot_count}.png")
+def bot_play(game, board, bots, is_bot_turn, current_player):
+    if game.running and is_bot_turn:
+        current_bot = bots[current_player]
+        game_copy = game.copy()
+        bot_move = current_bot.get_bot_move(game_copy)
+        if isinstance(current_bot, UltimateTTTBot):
+             if random.random() < 0.2: # take random screenshots and not at every turn
+                 take_screenshots(screen, current_player, bot_move)
+        board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
+        global_row, global_col = bot_move[0], bot_move[1]
+        local_row, local_col = bot_move[2], bot_move[3]
+        board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
+
+        # win check
+        global_winner, line_coords = board.final_global_state()
+        if global_winner != 0:
+            game.winner = global_winner
+            game.winner_line_coords = line_coords
+            game.running = False
+
+        # free play
+        next_g_row, next_g_col = local_row, local_col
+        if board.global_squares[next_g_row, next_g_col] != 0:
+            game.allowed_square = None
+        else:
+            game.allowed_square = (next_g_row, next_g_col)
+
+        game.switch_player()
+        print(board.global_squares)
+
+def human_play(game, board, are_bots_enabled, event):
+    if game.running and not are_bots_enabled[game.player] and game.hover is not None:
+        global_row, global_col = game.hover
+        mouse_x, mouse_y = event.pos
+        local_col = (mouse_x % SIZE) // LOCAL_SIZE
+        local_row = (mouse_y % SIZE) // LOCAL_SIZE
+
+        if game.is_move_legal(global_row, global_col, local_row, local_col) and game.running:
+            board.mark_square(global_row, global_col, local_row, local_col, game.player)
+            board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
+
+            # win check
+            global_winner, line_coords = board.final_global_state()
+            if global_winner != 0:
+                game.winner = global_winner
+                game.winner_line_coords = line_coords
+                game.running = False
+
+            # free play
+            next_g_row, next_g_col = local_row, local_col
+            if board.global_squares[next_g_row, next_g_col] != 0:
+                game.allowed_square = None
+            else:
+                game.allowed_square = (next_g_row, next_g_col)
+
+            game.switch_player()
+            print(board.global_squares)
+
+def game_shortcuts(event, game, are_bots_enabled):
+    if event.type == pygame.KEYDOWN:
+        set_game_mode(event.key, are_bots_enabled)
+        if event.key == pygame.K_r:
+            print("Reset game")
+            game.reset()
+        if event.key == pygame.K_q:
+            print("Quit pygame")
+            pygame.quit()
+            sys.exit()
+
+def take_screenshots(screen, player, bot_move):
+    global SCREENSHOT_COUNT
+    filename = os.path.join(images_folder, f"ultimate_ttt_screenshot_{SCREENSHOT_COUNT}.png")
     pygame.image.save(screen, filename)
+    log_bot_move(player, SCREENSHOT_COUNT, bot_move)
     print(f"Screenshot saved to {filename}")
-    return time.time(), screenshot_count + 1
+    SCREENSHOT_COUNT += 1
+    return time.time(), SCREENSHOT_COUNT
+
+def log_bot_move(player, screenshot_count, bot_move):
+    g_row, g_col, l_row, l_col = bot_move
+    log = {
+        "player": player,
+        "screenshot_count": screenshot_count,
+        "move": {
+            "global_row": g_row,
+            "global_col": g_col,
+            "local_row": l_row,
+            "local_col": l_col
+        }
+    }
+
+    try:
+        with open(log_file_path, "a") as f:
+            json.dump(log, f)
+            f.write("\n")
+        print(f"Log for Player_{player} saved to {log_file_path} with move: {bot_move}")
+    except Exception as e:
+        print(e)
 
 class Board:
     def __init__(self):
@@ -353,14 +448,10 @@ class Game:
 def main():
     game = Game()
     board = game.board
-    player_1 = UltimateTTTBot(1) # X
+    player_1 = RandomTTTBot(1) # X
     player_2 = UltimateTTTBot(2) # O
-    # one bot needs to be random or else there will be no variation
     bots = {1: player_1, 2: player_2}
-    bot_enabled = {1: False, 2: False}
-
-    last_screenshot = time.time()
-    screenshot_count = 0
+    are_bots_enabled = {1: False, 2: False}
 
     while True:
         screen.fill(BG_COLOR)
@@ -370,39 +461,10 @@ def main():
         game.draw_win()
 
         current_player = game.player
-        is_bot_turn = bot_enabled[current_player]
-
-        if (time.time() - last_screenshot) >= 15 and game.running:
-            last_screenshot, screenshot_count = take_screenshots(screen, screenshot_count)
+        is_bot_turn = are_bots_enabled[current_player]
 
         # bot logic needs to run every frame and not wait for input
-        if game.running and is_bot_turn:
-            current_bot = bots[current_player]
-            random_delay = max(0.2, (0.5 + random.uniform(-0.3, 0.3)))
-            time.sleep(random_delay)
-            game_copy = game.copy()
-            bot_move = current_bot.get_bot_move(game_copy)
-            board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
-            global_row, global_col = bot_move[0], bot_move[1]
-            local_row, local_col = bot_move[2], bot_move[3]
-            board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
-
-            # win check
-            global_winner, line_coords = board.final_global_state()
-            if global_winner != 0:
-                game.winner = global_winner
-                game.winner_line_coords = line_coords
-                game.running = False
-
-            # free play
-            next_g_row, next_g_col = local_row, local_col
-            if board.global_squares[next_g_row, next_g_col] != 0:
-                game.allowed_square = None
-            else:
-                game.allowed_square = (next_g_row, next_g_col)
-
-            game.switch_player()
-            print(board.global_squares)
+        bot_play(game, board, bots, is_bot_turn, current_player)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -413,53 +475,32 @@ def main():
                 pos = event.pos
                 game.hover = get_hovered_square(pos)
 
-            if event.type == pygame.KEYDOWN:
-                set_game_mode(event.key, bot_enabled, game)
-                if event.key == pygame.K_r:
-                    print("Reset game")
-                    game.reset()
-                if event.key == pygame.K_q:
-                    print("Quit pygame")
-                    pygame.quit()
-                    sys.exit()
+            game_shortcuts(event, game, are_bots_enabled)
 
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if game.running and not bot_enabled[game.player] and game.hover is not None:
-                    global_row, global_col = game.hover
-                    mouse_x, mouse_y = event.pos
-                    local_col = (mouse_x % SIZE) // LOCAL_SIZE
-                    local_row = (mouse_y % SIZE) // LOCAL_SIZE
-
-                    if game.is_move_legal(global_row, global_col, local_row, local_col) and game.running:
-                        board.mark_square(global_row, global_col, local_row, local_col, game.player)
-                        board.global_squares[global_row, global_col] = check_win(board.squares[global_row, global_col])
-
-                        # win check
-                        global_winner, line_coords = board.final_global_state()
-                        if global_winner != 0:
-                            game.winner = global_winner
-                            game.winner_line_coords = line_coords
-                            game.running = False
-
-                        # free play
-                        next_g_row, next_g_col = local_row, local_col
-                        if board.global_squares[next_g_row, next_g_col] != 0:
-                            game.allowed_square = None
-                        else:
-                            game.allowed_square = (next_g_row, next_g_col)
-
-                        game.switch_player()
-                        print(board.global_squares)
+                human_play(game, board, are_bots_enabled, event)
 
         pygame.display.update()
 
-        if not game.running and bot_enabled[1] and bot_enabled[2]:
+        if not game.running and are_bots_enabled[1] and are_bots_enabled[2]:
             print("Game Over")
             end_time = time.time() + 10
             while time.time() < end_time:
+                for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        game_shortcuts(event, game, are_bots_enabled)
+                # force draw the final frame as it won't otherwise for some reason
                 game.draw_all_again()
                 game.draw_win()
                 pygame.display.update()
+            if bots[1] == player_1 and bots[2] == player_2:
+                bots[1] = player_2
+                bots[2] = player_1
+                print("Switch bots")
+            else:
+                bots[1] = player_1
+                bots[2] = player_2
+                print("Switch bots")
             game.reset()
             print("Resetting game")
 

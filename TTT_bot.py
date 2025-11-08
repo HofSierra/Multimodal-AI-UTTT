@@ -1,6 +1,7 @@
 #Ultimate Version
 import math
 import numpy as np
+import random
 from config import *
 
 def check_win(grid):
@@ -20,6 +21,16 @@ def check_win(grid):
         return -1
     # Ongoing
     return 0
+
+class RandomTTTBot:
+    def __init__(self, player):
+        self.player = player
+
+    def get_bot_move (self, game):
+        legal_moves = game.get_legal_moves()
+        if not legal_moves:
+            return None
+        return random.choice(legal_moves)
 
 class UltimateTTTBot:
     def __init__(self, player, depth = 3):
