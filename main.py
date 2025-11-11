@@ -84,6 +84,21 @@ def bot_play(game, board, bots, is_bot_turn, current_player):
         current_bot = bots[current_player]
         game_copy = game.copy()
         bot_move = current_bot.get_bot_move(game_copy)
+# --- START: DATASET GENERATION CODE ---
+        # We log the state *before* the move is made.
+        # game.allowed_square is our "green square" ground truth.
+        active_board_truth = game.allowed_square
+
+        # Create a unique ID for this screenshot
+        state_id = f"{game.player}_{time.time_ns()}"
+        img_filename = os.path.join(images_folder, f"state_{state_id}.png")
+
+        # Save the screenshot
+        pygame.image.save(screen, img_filename)
+
+        # Save the matching ground truth answer in a log file
+        log_vqa_data(img_filename, active_board_truth, game)
+# --- END: DATASET GENERATION CODE ---
         if isinstance(current_bot, UltimateTTTBot):
              if random.random() < 0.2: # take random screenshots and not at every turn
                  take_screenshots(screen, current_player, bot_move)
@@ -108,6 +123,25 @@ def bot_play(game, board, bots, is_bot_turn, current_player):
 
         game.switch_player()
         print(board.global_squares)
+
+def log_vqa_data(image_path, active_board, game_instance):
+    """Logs the VQA ground truth for our finetuning dataset."""
+    log_entry = {
+        "image_path": image_path,
+        "active_board_coords": active_board, # This is our 'green square' answer
+        "current_player": game_instance.player,
+        "legal_moves": game_instance.get_legal_moves(),
+        "board_state": game_instance.board.squares.tolist(),
+        "meta_board_state": game_instance.board.global_squares.tolist()
+    }
+
+    try:
+        # We'll save this in a new file, separate from your bot logs
+        with open("vqa_perception_dataset.jsonl", "a") as f:
+            json.dump(log_entry, f)
+            f.write("\n")
+    except Exception as e:
+        print(f"Error logging VQA data: {e}")
 
 def human_play(game, board, are_bots_enabled, event):
     if game.running and not are_bots_enabled[game.player] and game.hover is not None:
