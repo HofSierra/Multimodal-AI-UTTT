@@ -23,3 +23,7 @@ CROSS_COLOR = (205, 42, 91)
 CIRCLE_COLOR = (8, 112, 202)
 HOVER_COLOR = (0, 0, 0, 60)
 ALLOWED_BOARD_COLOR = (182, 219, 192, 85)
+
+# paths
+IMAGES_FOLDER = "screens"
+LOG_FILE_PATH = "logs/bot_moves.jsonl"
