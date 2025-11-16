@@ -13,9 +13,7 @@ pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Ultimate Tic Tac Toe')
 screen.fill(BG_COLOR)
-images_folder = "screens"
-log_file_path = "logs/bot_moves.jsonl"
-SCREENSHOT_COUNT = 0
+SCREENSHOT_COUNT = 1
 
 # method to check if local/global board (3x3) has been won by any player
 def check_win(grid):
@@ -86,7 +84,7 @@ def bot_play(game, board, bots, is_bot_turn, current_player):
         bot_move = current_bot.get_bot_move(game_copy)
         if isinstance(current_bot, UltimateTTTBot):
              if random.random() < 0.2: # take random screenshots and not at every turn
-                 take_screenshots(screen, current_player, bot_move)
+                 take_screenshots(screen, game, current_player, bot_move)
         board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
         global_row, global_col = bot_move[0], bot_move[1]
         local_row, local_col = bot_move[2], bot_move[3]
@@ -148,33 +146,49 @@ def game_shortcuts(event, game, are_bots_enabled):
             pygame.quit()
             sys.exit()
 
-def take_screenshots(screen, player, bot_move):
+def take_screenshots(screen, game, player, bot_move):
     global SCREENSHOT_COUNT
-    filename = os.path.join(images_folder, f"ultimate_ttt_screenshot_{SCREENSHOT_COUNT}.png")
+    filename = os.path.join(IMAGES_FOLDER, f"image_{SCREENSHOT_COUNT}.png")
     pygame.image.save(screen, filename)
-    log_bot_move(player, SCREENSHOT_COUNT, bot_move)
+    log_bot_move(game, player, filename, bot_move)
     print(f"Screenshot saved to {filename}")
     SCREENSHOT_COUNT += 1
     return time.time(), SCREENSHOT_COUNT
 
-def log_bot_move(player, screenshot_count, bot_move):
+def log_bot_move(game, player, filename, bot_move):
     g_row, g_col, l_row, l_col = bot_move
+
+    legal_moves = game.get_legal_moves()
+    annotated_legal_moves = []
+
+    for move in legal_moves:
+        gr, gc, lr, lc = move
+        annotated_move = {
+            "global_row": gr,
+            "global_col": gc,
+            "local_row": lr,
+            "local_col": lc,
+        }
+        annotated_legal_moves.append(annotated_move)
+
     log = {
         "player": player,
-        "screenshot_count": screenshot_count,
-        "move": {
+        "image path": filename,
+        "legal moves": annotated_legal_moves,
+        "best move": {
             "global_row": g_row,
             "global_col": g_col,
             "local_row": l_row,
             "local_col": l_col
-        }
+        },
+        "chain of thought": "",
     }
 
     try:
-        with open(log_file_path, "a") as f:
+        with open(LOG_FILE_PATH, "a") as f:
             json.dump(log, f)
             f.write("\n")
-        print(f"Log for Player_{player} saved to {log_file_path} with move: {bot_move}")
+        print(f"Log for Player_{player} saved to {LOG_FILE_PATH} with move: {bot_move}")
     except Exception as e:
         print(e)
 
@@ -257,9 +271,9 @@ class Game:
         local_lines_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         for row in range(ROWS):
             for col in range(COLS):
-                # local_winner = self.board.global_squares[row][col]
-                # if local_winner != -1 and local_winner != 0:
-                #     continue
+                local_winner = self.board.global_squares[row][col]
+                if local_winner != -1 and local_winner != 0:
+                     continue
 
                 board_x_offset = col * SIZE
                 board_y_offset = row * SIZE
@@ -299,15 +313,15 @@ class Game:
         for global_row in range(ROWS):
             for global_col in range(COLS):
                 local_winner = self.board.global_squares[global_row, global_col]
-                # if local_winner == -1 or local_winner == 0:
-                for local_row in range(ROWS):
-                    for local_col in range(COLS):
-                        player = self.board.squares[global_row][global_col][local_row][local_col]
-                        if player != 0:
-                            original_player = self.player
-                            self.player = int(player)
-                            self.draw_local_fig(global_row, global_col, local_row, local_col)
-                            self.player = original_player
+                if local_winner == -1 or local_winner == 0:
+                    for local_row in range(ROWS):
+                        for local_col in range(COLS):
+                            player = self.board.squares[global_row][global_col][local_row][local_col]
+                            if player != 0:
+                                original_player = self.player
+                                self.player = int(player)
+                                self.draw_local_fig(global_row, global_col, local_row, local_col)
+                                self.player = original_player
                 if local_winner in [1, 2]:
                     original_player = self.player
                     self.player = int(local_winner)
@@ -466,6 +480,13 @@ def main():
         # bot logic needs to run every frame and not wait for input
         bot_play(game, board, bots, is_bot_turn, current_player)
 
+        if not game.running:
+            screen.fill(BG_COLOR)
+            game.draw_allowed_square()
+            game.show_lines()
+            game.draw_all_again()
+            game.draw_win()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -489,10 +510,6 @@ def main():
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
                         game_shortcuts(event, game, are_bots_enabled)
-                # force draw the final frame as it won't otherwise for some reason
-                game.draw_all_again()
-                game.draw_win()
-                pygame.display.update()
             if bots[1] == player_1 and bots[2] == player_2:
                 bots[1] = player_2
                 bots[2] = player_1
