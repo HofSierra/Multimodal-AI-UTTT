@@ -50,10 +50,9 @@ def format_board_state(global_state):
     return board
 
 
-def generate_prompt(entry):
-    """Generate a prompt for Gemini based on the current game state."""
-    # Format board state
-    board = format_board_state(entry["global state"])
+def format_board_compact(global_state):
+    """Format board state into compact text representation."""
+    board = format_board_state(global_state)
     board_text = ""
     for i, row in enumerate(board):
         if i > 0 and i % 3 == 0:
@@ -65,47 +64,57 @@ def generate_prompt(entry):
             symbol = "." if cell == 0 else ("X" if cell == 1 else "O")
             row_str += symbol
         board_text += row_str + "\n"
+    return board_text
+
+
+def generate_prompt(current_entry):
+    """Generate optimized prompt for Gemini - concise strategic analysis only."""
+    # Format board state
+    board_text = format_board_compact(current_entry["global state"])
 
     # Get player info
-    player_symbol = 'X' if entry['player'] == 1 else 'O'
+    player = current_entry['player']
+    player_symbol = 'X' if player == 1 else 'O'
 
     # Get best move
-    best_move = entry["best move"]
-    best_move_str = f"Global({best_move['global_row']}, {best_move['global_col']}) Local({best_move['local_row']}, {best_move['local_col']})"
+    best_move = current_entry["best move"]
+    gr, gc = best_move['global_row'], best_move['global_col']
+    lr, lc = best_move['local_row'], best_move['local_col']
 
     # Get allowed squares
-    allowed = entry.get("allowed squares")
+    allowed = current_entry.get("allowed squares")
     allowed_str = f"({allowed[0]}, {allowed[1]})" if allowed else "Any"
 
-    # Build the prompt
-    prompt = f"""You are an expert Ultimate Tic-Tac-Toe player analyzing a game position.
+    # Optimized prompt - prevents board redrawing and enforces word limit
+    prompt = f"""Ultimate Tic-Tac-Toe Strategic Analysis
 
-Current Board State (9x9):
+Board State:
 {board_text}
 
-Player: {entry['player']} ({player_symbol})
+Player: {player} ({player_symbol})
+Best Move: Global({gr}, {gc}) Local({lr}, {lc})
 Allowed Square: {allowed_str}
-Best Move: {best_move_str}
 
-Please provide a detailed chain of thought explaining why this move is the best choice. Include:
-1. Analysis of the current board state
-2. Identification of immediate threats and opportunities
-3. Strategic reasoning behind this specific move
-4. How this move affects future gameplay
-5. Why this move is better than alternatives
+STRICT REQUIREMENTS:
+- Write EXACTLY 50-80 words
+- Do NOT redraw or describe the board state
+- Explain WHY this move at Global({gr},{gc}) Local({lr},{lc}) is optimal
+- State OFFENSIVE strategy: What does it achieve?
+- State DEFENSIVE strategy: What does it prevent/block?
+- Use coordinates in your explanation
+- Be direct and concise
 
-Provide your analysis in a clear, structured format."""
+Strategic Analysis:"""
 
     return prompt
 
 
 def get_gemini_suggestion(prompt, api_key):
     """Get suggestion from Gemini API."""
-    import google.generativeai as genai
-
     try:
+        import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -239,7 +248,6 @@ with col_right:
 
     # Chain of Thought section
     st.divider()
-    st.subheader("💭 Chain of Thought")
 
     col_gen, col_auto = st.columns([3, 1])
 
@@ -305,22 +313,7 @@ with col_right:
 
     # Board state visualization
     with st.expander("📊 Board State (9x9 Grid)"):
-        board = format_board_state(current_entry["global state"])
-
-        # Display as text grid
-        board_text = ""
-        for i, row in enumerate(board):
-            if i > 0 and i % 3 == 0:
-                board_text += "---+---+---\n"
-            row_str = ""
-            for j, cell in enumerate(row):
-                if j > 0 and j % 3 == 0:
-                    row_str += "|"
-                symbol = "." if cell == 0 else ("X" if cell == 1 else "O")
-                row_str += symbol
-            board_text += row_str + "\n"
-
-        st.code(board_text)
+        st.code(format_board_compact(current_entry["global state"]))
 
 # Statistics in sidebar
 st.sidebar.header("📊 Statistics")
