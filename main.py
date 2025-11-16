@@ -161,6 +161,21 @@ def log_bot_move(game, player, filename, bot_move):
     legal_moves = game.get_legal_moves()
     annotated_legal_moves = []
 
+    global_state_log = []
+    for gr in range(ROWS):
+        for gc in range(COLS):
+            for lr in range(ROWS):
+                for lc in range(COLS):
+                    l_player = game.board.squares[gr][gc][lr][lc]
+                    global_state = {
+                        "global_row": gr,
+                        "global_col": gc,
+                        "local_row": lr,
+                        "local_col": lc,
+                        "player": int(l_player),
+                    }
+                    global_state_log.append(global_state)
+
     for move in legal_moves:
         gr, gc, lr, lc = move
         annotated_move = {
@@ -175,6 +190,8 @@ def log_bot_move(game, player, filename, bot_move):
         "player": player,
         "image path": filename,
         "legal moves": annotated_legal_moves,
+        "allowed squares": game.allowed_square,
+        "global state": global_state_log,
         "best move": {
             "global_row": g_row,
             "global_col": g_col,
