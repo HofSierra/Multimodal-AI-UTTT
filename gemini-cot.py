@@ -50,9 +50,10 @@ def format_board_state(global_state):
     return board
 
 
-def format_board_compact(global_state):
-    """Format board state into compact text representation."""
-    board = format_board_state(global_state)
+def generate_prompt(current_entry):
+    """Generate a prompt for Gemini based on the current game state."""
+    # Format board state from 'global state' key
+    board = format_board_state(current_entry["global state"])
     board_text = ""
     for i, row in enumerate(board):
         if i > 0 and i % 3 == 0:
@@ -64,47 +65,36 @@ def format_board_compact(global_state):
             symbol = "." if cell == 0 else ("X" if cell == 1 else "O")
             row_str += symbol
         board_text += row_str + "\n"
-    return board_text
-
-
-def generate_prompt(current_entry):
-    """Generate optimized prompt for Gemini - concise strategic analysis only."""
-    # Format board state
-    board_text = format_board_compact(current_entry["global state"])
 
     # Get player info
-    player = current_entry['player']
-    player_symbol = 'X' if player == 1 else 'O'
+    player_symbol = 'X' if current_entry['player'] == 1 else 'O'
 
     # Get best move
     best_move = current_entry["best move"]
-    gr, gc = best_move['global_row'], best_move['global_col']
-    lr, lc = best_move['local_row'], best_move['local_col']
+    best_move_str = f"Global({best_move['global_row']}, {best_move['global_col']}) Local({best_move['local_row']}, {best_move['local_col']})"
 
     # Get allowed squares
     allowed = current_entry.get("allowed squares")
     allowed_str = f"({allowed[0]}, {allowed[1]})" if allowed else "Any"
 
-    # Optimized prompt - prevents board redrawing and enforces word limit
-    prompt = f"""Ultimate Tic-Tac-Toe Strategic Analysis
+    # Build the prompt
+    prompt = f"""You are an expert Ultimate Tic-Tac-Toe player analyzing a game position.
 
-Board State:
+Current Board State (9x9):
 {board_text}
 
-Player: {player} ({player_symbol})
-Best Move: Global({gr}, {gc}) Local({lr}, {lc})
+Player: {current_entry['player']} ({player_symbol})
 Allowed Square: {allowed_str}
+Best Move: {best_move_str}
 
-STRICT REQUIREMENTS:
-- Write EXACTLY 50-80 words
-- Do NOT redraw or describe the board state
-- Explain WHY this move at Global({gr},{gc}) Local({lr},{lc}) is optimal
-- State OFFENSIVE strategy: What does it achieve?
-- State DEFENSIVE strategy: What does it prevent/block?
-- Use coordinates in your explanation
-- Be direct and concise
+Please provide a detailed chain of thought explaining why this move is the best choice. Include:
+1. Analysis of the current board state
+2. Identification of immediate threats and opportunities
+3. Strategic reasoning behind this specific move
+4. How this move affects future gameplay
+5. Why this move is better than alternatives
 
-Strategic Analysis:"""
+Provide your analysis in a clear, structured format."""
 
     return prompt
 
@@ -114,7 +104,7 @@ def get_gemini_suggestion(prompt, api_key):
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -225,10 +215,66 @@ with col_left:
     # Game info
     st.write(f"**Player:** {current_entry['player']} ({'X' if current_entry['player'] == 1 else 'O'})")
 
-    # Best move
+    # Best move with edit capability
+    st.write("**Best Move:**")
     best_move = current_entry["best move"]
-    st.write(
-        f"**Best Move:** Global({best_move['global_row']}, {best_move['global_col']}) Local({best_move['local_row']}, {best_move['local_col']})")
+
+    # Show current best move
+    st.info(
+        f"Current: Global({best_move['global_row']}, {best_move['global_col']}) Local({best_move['local_row']}, {best_move['local_col']})")
+
+    # Edit best move section
+    with st.expander("✏️ Edit Best Move"):
+        st.write("Select from legal moves or enter manually:")
+
+        # Option 1: Select from legal moves
+        legal_moves = current_entry["legal moves"]
+        legal_moves_str = [f"G({m['global_row']},{m['global_col']}) L({m['local_row']},{m['local_col']})" for m in
+                           legal_moves]
+
+        # Find current selection
+        current_move_str = f"G({best_move['global_row']},{best_move['global_col']}) L({best_move['local_row']},{best_move['local_col']})"
+        current_idx = legal_moves_str.index(current_move_str) if current_move_str in legal_moves_str else 0
+
+        selected_move_idx = st.selectbox(
+            "Select from legal moves:",
+            range(len(legal_moves)),
+            format_func=lambda i: f"{i + 1}. {legal_moves_str[i]}",
+            index=current_idx,
+            key="legal_move_selector"
+        )
+
+        if st.button("✅ Use Selected Move", key="use_legal_move"):
+            st.session_state.data[st.session_state.current_index]["best move"] = legal_moves[selected_move_idx]
+            st.session_state.modified = True
+            st.success("Best move updated!")
+            st.rerun()
+
+        st.divider()
+        st.write("**Or enter manually:**")
+
+        # Option 2: Manual input
+        col_gr, col_gc, col_lr, col_lc = st.columns(4)
+        with col_gr:
+            new_gr = st.number_input("Global Row", 0, 2, best_move['global_row'], key="manual_gr")
+        with col_gc:
+            new_gc = st.number_input("Global Col", 0, 2, best_move['global_col'], key="manual_gc")
+        with col_lr:
+            new_lr = st.number_input("Local Row", 0, 2, best_move['local_row'], key="manual_lr")
+        with col_lc:
+            new_lc = st.number_input("Local Col", 0, 2, best_move['local_col'], key="manual_lc")
+
+        if st.button("✅ Apply Manual Move", key="use_manual_move"):
+            new_move = {
+                "global_row": new_gr,
+                "global_col": new_gc,
+                "local_row": new_lr,
+                "local_col": new_lc
+            }
+            st.session_state.data[st.session_state.current_index]["best move"] = new_move
+            st.session_state.modified = True
+            st.success("Best move updated!")
+            st.rerun()
 
     # Allowed squares
     allowed = current_entry.get("allowed squares")
@@ -294,8 +340,9 @@ with col_right:
     new_cot = st.text_area(
         "Edit Chain of Thought",
         value=current_cot,
-        height=150,
-        help="Edit or review the generated chain of thought"
+        height=200,
+        help="Edit or review the generated chain of thought",
+        key="cot_editor"
     )
 
     if new_cot != current_cot:
@@ -313,7 +360,36 @@ with col_right:
 
     # Board state visualization
     with st.expander("📊 Board State (9x9 Grid)"):
-        st.code(format_board_compact(current_entry["global state"]))
+        board = format_board_state(current_entry["global state"])
+
+        # Display as text grid
+        board_text = ""
+        for i, row in enumerate(board):
+            if i > 0 and i % 3 == 0:
+                board_text += "---+---+---\n"
+            row_str = ""
+            for j, cell in enumerate(row):
+                if j > 0 and j % 3 == 0:
+                    row_str += "|"
+                symbol = "." if cell == 0 else ("X" if cell == 1 else "O")
+                row_str += symbol
+            board_text += row_str + "\n"
+
+        st.code(board_text)
+
+# Quick actions
+st.divider()
+if st.button("🔄 Regenerate CoT for Current Move", use_container_width=True):
+    if not st.session_state.api_key:
+        st.error("Please enter your Gemini API Key")
+    else:
+        with st.spinner("Regenerating based on current best move..."):
+            prompt = generate_prompt(current_entry)
+            suggestion = get_gemini_suggestion(prompt, st.session_state.api_key)
+            st.session_state.data[st.session_state.current_index]["chain of thought"] = suggestion
+            st.session_state.modified = True
+            st.success("Chain of thought regenerated!")
+            st.rerun()
 
 # Statistics in sidebar
 st.sidebar.header("📊 Statistics")
