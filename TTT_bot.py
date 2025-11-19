@@ -2,6 +2,7 @@
 import math
 import numpy as np
 import random
+import time
 from config import *
 
 def check_win(grid):
@@ -33,21 +34,43 @@ class RandomTTTBot:
         return random.choice(legal_moves)
 
 class UltimateTTTBot:
-    def __init__(self, player, depth = 3):
+    def __init__(self, player, max_time = 2.0):
         self.player = player
         self.opponent = 1 if player == 2 else 2
-        self.depth = depth
+        self.max_time = max_time
 
     def get_bot_move(self, game):
-        _, move = self.minimax(game, self.depth, -math.inf, math.inf, True)
-        return move
-
-    def minimax(self, game, depth, alpha, beta, maximizing_player):
-        if depth == 0 or game.is_game_over():
-            return self.evaluate(game), None
-
+        start_time = time.time()
         legal_moves = game.get_legal_moves()
         if not legal_moves:
+            return None
+        best_move = legal_moves[0]
+        current_depth = 1
+
+        while True:
+            if time.time() - start_time > self.max_time * 0.95:
+                break
+            try:
+                if current_depth > 1:
+                    # order to improve search time by ignoring moves that aren't better than the current best
+                    ordered_moves = [best_move] + [move for move in legal_moves if move != best_move]
+                else:
+                    ordered_moves = legal_moves
+
+                _, current_best_move = self.minimax(game, current_depth, -math.inf, math.inf, True, ordered_moves)
+                if current_best_move:
+                    best_move = current_best_move
+                current_depth += 1
+            except Exception as e:
+                print(e)
+                break
+        return best_move
+
+    def minimax(self, game, depth, alpha, beta, maximizing_player, moves = None):
+        is_minimax_ordered = moves is not None
+        legal_moves = moves if is_minimax_ordered else game.get_legal_moves()
+
+        if depth == 0 or game.is_game_over() or not legal_moves:
             return self.evaluate(game), None
 
         best_move = None
@@ -83,10 +106,9 @@ class UltimateTTTBot:
             else:
                 if eval_score < value:
                     value, best_move = eval_score, move
-                alpha = min(alpha, value)
+                beta = min(beta, value)
                 if beta <= alpha:
                     break
-
         return value, best_move
 
     # Evaluate the current game state
@@ -104,14 +126,18 @@ class UltimateTTTBot:
         global_board = game.board.global_squares
         score += self.evaluate_global_board(global_board)
 
+        # Punish for giving opponent free play
+        if game.allowed_square is None: score -= 500
+
         # Local Board Evaluation
         for row in range(ROWS):
             for col in range(COLS):
                 board = game.board.squares[row][col]
                 if check_win(board) == self.player:
-                    score += 100
+                    score += 2000
+                    if row == 1 and col == 1: score += 2000
                 elif check_win(board) == self.opponent:
-                    score -= 100
+                    score -= 2000
                 else:
                     score += self.evaluate_local_board(board)
         return score
@@ -130,20 +156,31 @@ class UltimateTTTBot:
         ]
 
         score = 0
+
+        center_square = board[1][1]
+        if center_square == self.player: score += 0.35
+        elif center_square == self.opponent: score -= 0.35
+
+        corners = [(0, 0), (0, 2), (2, 0), (2, 2)]
+        for row, col in corners:
+            corner = board[row][col]
+            if corner == self.player: score += 0.30
+            elif corner == self.opponent: score -= 0.30
+
         for line in lines:
             values = [board[r][c] for r, c in line]
             if values.count(self.player) == 2 and 0 in values:
-                score += 1
+                score += 20
             elif values.count(self.opponent) == 2 and 0 in values:
-                score -= 1
+                score -= 20
             elif values.count(self.player) == 1 and values.count(0) == 2:
-                score += 0.1
+                score += 1
             elif values.count(self.opponent) == 1 and values.count(0) == 2:
-                score -= 0.1
+                score -= 1
         return score
 
     def evaluate_global_board(self, board):
-        return self.evaluate_lines(board) * 500
+        return self.evaluate_lines(board) * 10000
 
     def evaluate_local_board(self, board):
         return self.evaluate_lines(board) * 5

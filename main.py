@@ -83,8 +83,7 @@ def bot_play(game, board, bots, is_bot_turn, current_player):
         game_copy = game.copy()
         bot_move = current_bot.get_bot_move(game_copy)
         if isinstance(current_bot, UltimateTTTBot):
-             if random.random() < 0.2: # take random screenshots and not at every turn
-                 take_screenshots(screen, game, current_player, bot_move)
+             take_screenshots(screen, game, current_player, bot_move)
         board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
         global_row, global_col = bot_move[0], bot_move[1]
         local_row, local_col = bot_move[2], bot_move[3]
