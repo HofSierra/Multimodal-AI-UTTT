@@ -116,9 +116,9 @@ class UltimateTTTBot:
         winner = game.get_winner()
 
         if winner == self.player:
-            return 1000000
+            return 10000000
         elif winner == self.opponent:
-            return -1000000
+            return -10000000
 
         score = 0
 
