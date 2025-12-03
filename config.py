@@ -27,3 +27,4 @@ ALLOWED_BOARD_COLOR = (182, 219, 192, 85)
 # paths
 IMAGES_FOLDER = "screens"
 LOG_FILE_PATH = "logs/bot_moves.jsonl"
+DATASET_FOLDER = "uttt_qwen_dataset"
