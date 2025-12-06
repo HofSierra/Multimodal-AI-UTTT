@@ -28,3 +28,15 @@ ALLOWED_BOARD_COLOR = (182, 219, 192, 85)
 IMAGES_FOLDER = "screens"
 LOG_FILE_PATH = "logs/bot_moves.jsonl"
 DATASET_FOLDER = "uttt_qwen_dataset"
+
+# model consts
+MODEL_NAME = "unsloth/Qwen3-VL-8B-Instruct-unsloth-bnb-4bit"
+MAX_SEQ_LENGTH = 2048
+DTYPE = None
+
+# model relevant paths
+DATASET_TRAIN_PATH = "uttt_qwen_dataset/train.parquet"
+DATASET_EVALUATION_PATH = "uttt_qwen_dataset/evaluate.parquet"
+DATASET_TEST_PATH = "uttt_qwen_dataset/test.parquet"
+OUTPUT_DIR_V2 = "adapter_uttt_qwen_8b_v2"
+OUTPUT_DIR_V3 = "adapter_uttt_qwen_8b_v3"
