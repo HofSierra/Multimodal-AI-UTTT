@@ -27,6 +27,7 @@ ALLOWED_BOARD_COLOR = (182, 219, 192, 85)
 # paths
 IMAGES_FOLDER = "screens"
 LOG_FILE_PATH = "logs/bot_moves.jsonl"
+SYNTHETIC_LOG_FILE_PATH = "logs/bot_moves_synthetic.jsonl"
 DATASET_FOLDER = "uttt_qwen_dataset"
 
 # model consts
