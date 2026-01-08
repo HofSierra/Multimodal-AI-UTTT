@@ -3,17 +3,16 @@ import pygame
 import numpy as np
 import copy
 import time, json
-import random
 
-from TTT_bot import UltimateTTTBot, RandomTTTBot
+from TTT_bot import UltimateTTTBot, RandomTTTBot, VLMBot
 from config import *
 
-#ref: https://www.youtube.com/watch?v=Bk9hlNZc6sE
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Ultimate Tic Tac Toe')
 screen.fill(BG_COLOR)
 SCREENSHOT_COUNT = 1
+VLM_ENABLED = {1: True, 2: True}
 
 # method to check if local/global board (3x3) has been won by any player
 def check_win(grid):
@@ -79,11 +78,19 @@ def set_game_mode(key, are_bots_enabled):
 
 def bot_play(game, board, bots, is_bot_turn, current_player):
     if game.running and is_bot_turn:
+        refresh_screen(game)
+        pygame.event.pump()
         current_bot = bots[current_player]
         game_copy = game.copy()
         bot_move = current_bot.get_bot_move(game_copy)
-        if isinstance(current_bot, UltimateTTTBot):
-             take_screenshots(screen, game, current_player, bot_move)
+
+        #if isinstance(current_bot, UltimateTTTBot):
+        #     take_screenshots(screen, game, current_player, bot_move)
+
+        if bot_move is None:
+            print("API failed to return a move.")
+            return
+
         board.mark_square(bot_move[0], bot_move[1], bot_move[2], bot_move[3], game.player)
         global_row, global_col = bot_move[0], bot_move[1]
         local_row, local_col = bot_move[2], bot_move[3]
@@ -132,7 +139,13 @@ def human_play(game, board, are_bots_enabled, event):
                 game.allowed_square = (next_g_row, next_g_col)
 
             game.switch_player()
-            print(board.global_squares)
+            screen.fill(BG_COLOR)
+            game.draw_allowed_square()
+            game.show_lines()
+            game.draw_all_again()
+            game.draw_win()
+            pygame.display.update()
+        print(board.global_squares)
 
 def game_shortcuts(event, game, are_bots_enabled):
     if event.type == pygame.KEYDOWN:
@@ -475,33 +488,31 @@ class Game:
         self.winner = 0
         self.winner_line_coords = None
 
+def refresh_screen(game):
+    screen.fill(BG_COLOR)
+    game.draw_allowed_square()
+    game.show_lines()
+    game.draw_all_again()
+    game.draw_win()
+    pygame.display.update()
+
 def main():
     game = Game()
     board = game.board
-    player_1 = RandomTTTBot(1) # X
-    player_2 = UltimateTTTBot(2) # O
+    player_1 = VLMBot(screen, 1) # X
+    player_2 = VLMBot(screen, 2)
+    # player_2 = UltimateTTTBot(2) # O
     bots = {1: player_1, 2: player_2}
-    are_bots_enabled = {1: False, 2: False}
+    are_bots_enabled = {1: False, 2: True}
 
     while True:
-        screen.fill(BG_COLOR)
-        game.draw_allowed_square()
-        game.show_lines()
-        game.draw_all_again()
-        game.draw_win()
-
         current_player = game.player
         is_bot_turn = are_bots_enabled[current_player]
 
         # bot logic needs to run every frame and not wait for input
-        bot_play(game, board, bots, is_bot_turn, current_player)
-
-        if not game.running:
-            screen.fill(BG_COLOR)
-            game.draw_allowed_square()
-            game.show_lines()
-            game.draw_all_again()
-            game.draw_win()
+        if game.running and is_bot_turn:
+            pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
+            bot_play(game, board, bots, is_bot_turn, current_player)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -517,9 +528,9 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 human_play(game, board, are_bots_enabled, event)
 
-        pygame.display.update()
+        refresh_screen(game)
 
-        if not game.running and are_bots_enabled[1] and are_bots_enabled[2]:
+        '''if not game.running and are_bots_enabled[1] and are_bots_enabled[2]:
             print("Game Over")
             end_time = time.time() + 10
             while time.time() < end_time:
@@ -535,6 +546,6 @@ def main():
                 bots[2] = player_2
                 print("Switch bots")
             game.reset()
-            print("Resetting game")
+            print("Resetting game")'''
 
 main()

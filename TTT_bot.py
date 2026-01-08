@@ -1,8 +1,8 @@
 #Ultimate Version
 import math
 import numpy as np
-import random
-import time
+from PIL import Image
+import random, time, requests, io, base64, pygame
 from config import *
 
 def check_win(grid):
@@ -32,6 +32,53 @@ class RandomTTTBot:
         if not legal_moves:
             return None
         return random.choice(legal_moves)
+
+class VLMBot:
+    def __init__(self, screen, player):
+        self.player = player
+        self.screen = screen
+        self.api_url = "https://vernetta-superspiritual-sorrily.ngrok-free.dev/predict_move"
+
+    def get_bot_move(self, game):
+
+        image_data = pygame.image.tostring(self.screen, "RGB")
+        img = Image.frombytes("RGB", self.screen.get_size(), image_data)
+        buffered = io.BytesIO()
+        img.save(buffered, format="JPEG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+
+        game_state_list = []
+        for gr in range(ROWS):
+            for gc in range(COLS):
+                for lr in range(ROWS):
+                    for lc in range(COLS):
+                        game_state_list.append({
+                            "global_row": gr, "global_col": gc,
+                            "local_row": lr, "local_col": lc,
+                            "player": int(game.board.squares[gr][gc][lr][lc]),
+                        })
+
+        payload = {
+            "image_base64": img_str,
+            "player_turn": "X" if self.player == 1 else "O",
+            "global_state": game_state_list,
+            "allowed_square": game.allowed_square
+        }
+
+        try:
+            print(f"--- Sending API Request for Player {self.player} ---")
+            response = requests.post(self.api_url, json=payload, timeout=20)
+            if response.status_code == 200:
+                move = response.json()
+                # Verify coordinates are present
+                if all(k in move for k in ["global_row", "global_col", "local_row", "local_col"]):
+                    return (move["global_row"], move["global_col"], move["local_row"], move["local_col"])
+            else:
+                print(f"API Error: Status {response.status_code}")
+        except Exception as e:
+            print(f"VLM API CONNECTION ERROR: {e}")
+
+        return None
 
 class UltimateTTTBot:
     def __init__(self, player, max_time = 2.0):
