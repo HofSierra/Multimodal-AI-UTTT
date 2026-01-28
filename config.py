@@ -30,15 +30,11 @@ LOG_FILE_PATH = "logs/bot_moves.jsonl"
 SYNTHETIC_LOG_FILE_PATH = "logs/bot_moves_synthetic.jsonl"
 DATASET_FOLDER = "uttt_qwen_dataset"
 
-# model consts
+# model
 MODEL_NAME = "unsloth/Qwen3-VL-8B-Instruct-unsloth-bnb-4bit"
-MAX_SEQ_LENGTH = 2048
-DTYPE = None
 
 # model relevant paths
 DATASET_TRAIN_PATH = "uttt_qwen_dataset/train.parquet"
-DATASET_EVALUATION_PATH = "uttt_qwen_dataset/evaluate.parquet"
+DATASET_EVAL_PATH = "uttt_qwen_dataset/evaluate.parquet"
 DATASET_TEST_PATH = "uttt_qwen_dataset/test.parquet"
 OUTPUT_DIR_V2 = "adapter_uttt_qwen_8b_v2"
-OUTPUT_DIR_V3 = "adapter_uttt_qwen_8b_v3"
-OUTPUT_DIR_V4 = "adapter_uttt_qwen_8b_v4"

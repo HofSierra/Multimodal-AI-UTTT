@@ -499,7 +499,7 @@ def refresh_screen(game):
 def main():
     game = Game()
     board = game.board
-    player_1 = VLMBot(screen, 1) # X
+    player_1 = VLMBot(screen, 1)
     player_2 = VLMBot(screen, 2)
     # player_2 = UltimateTTTBot(2) # O
     bots = {1: player_1, 2: player_2}

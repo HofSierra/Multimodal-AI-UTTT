@@ -1,5 +1,4 @@
-import random
-import json, os
+import json, os, re
 from config import *
 from PIL import Image
 
@@ -32,6 +31,35 @@ def rotate_and_save_image(original_path, new_path, angle):
         print(f"  -> WARNING: Original image not found at {original_path}. Skipping image generation.")
     except Exception as e:
         print(f"  -> ERROR rotating image {original_path}: {e}")
+
+def rotate_cot_text(text, angle):
+    if angle == 0:
+        return text
+
+    def rotate_func(r, c, a):
+        if a == 90: return c, 2 - r
+        if a == 180: return 2 - r, 2 - c
+        if a == 270: return 2 - c, r
+        return r, c
+
+    # 1. Rotate structured dictionary-like blocks in text
+    def fix_block(match):
+        # Extract digits: gr, gc, lr, lc
+        d = [int(x) for x in re.findall(r'\d+', match.group(0))]
+        ngr, ngc = rotate_func(d[0], d[1], angle)
+        nlr, nlc = rotate_func(d[2], d[3], angle)
+        return f"{{global_row: {ngr}, global_col: {ngc}, local_row: {nlr}, local_col: {ngc}}}"
+
+    text = re.sub(r'\{global_row: \d+, global_col: \d+, local_row: \d+, local_col: \d+\}', fix_block, text)
+
+    # 2. Rotate all free-text coordinate pairs (r, c)
+    def fix_pair(match):
+        r, c = int(match.group(1)), int(match.group(2))
+        nr, nc = rotate_func(r, c, angle)
+        return f"({nr}, {nc})"
+
+    text = re.sub(r'\((\d)\s*,\s*(\d)\)', fix_pair, text)
+    return text
 
 def rotate_log_entry(original_log, angle):
     if angle == 0:
@@ -96,60 +124,7 @@ def rotate_log_entry(original_log, angle):
         new_allowed_square = [ar, ac]
 
     new_log["allowed squares"] = new_allowed_square
-
-    new_move = (new_best_move_gr, new_best_move_gc, new_best_move_lr, new_best_move_lc)
-    legal_moves_count = len(original_log["legal moves"])
-    player = original_log["player"]
-
-    new_cot = gen_cot(
-        move=new_move,
-        player=player,
-        legal_moves_count=legal_moves_count,
-        allowed_square=new_allowed_square,
-    )
-
-    new_log["chain of thought"] = new_cot
-
     return new_log
-
-def gen_cot(move, player, legal_moves_count, allowed_square):
-    gr, gc, lr, lc = move
-    player_str = "X" if player == 1 else "O"
-
-    cot = f"Current player: {player_str}. "
-    is_constrained = allowed_square is not None
-
-    if is_constrained:
-        ag_row, ag_col = allowed_square
-        constraint_check = f"The UTTT constraint is active, requiring a move on global board ({ag_row},{ag_col}). The chosen move ({gr},{gc}) respects this constraint. "
-    else:
-        constraint_check = f"There is currently no UTTT constraint (Free Play). The selected global board ({gr},{gc}) is available for play. "
-
-    cot += f"Move Legality Check: {constraint_check}The target cell ({lr},{lc}) within that board must be empty. This move has been verified as legal. Total legal moves available: {legal_moves_count}. "
-
-    strategy = ""
-    is_center = (lr == 1 and lc == 1)
-    is_corner = (lr in (0, 2) and lc in (0, 2))
-    is_local_diagonal = (lr == lc or lr + lc == 2)
-    is_global_diagonal = (gr == gc or gr + gc == 2)
-
-    if is_constrained and (gr, gc) == allowed_square and is_center:
-        strategy += "This move secures the local center and, critically, directs the opponent to the exact same board, forcing them into a high-pressure defensive decision."
-    elif is_center:
-        strategy += "This move secures the central position of the local board, which is strategically the most valuable square for controlling future lines and maximizing win potential."
-    elif is_corner:
-        strategy += "This move secures a corner position in the local board, establishing key control points for a potential local win and strong setup."
-    elif is_local_diagonal:
-        strategy += "This move establishes a critical point along a local diagonal, immediately creating a win threat or setting up a powerful two-way attack within the sub-board."
-    elif is_global_diagonal and random.random() < 0.4:
-        strategy += "This move contributes to securing a win along a global diagonal (either main or anti-diagonal), which is a high-value strategy for overall game control and board dominance."
-    else:
-        strategy += "This is a key defensive move, blocking an immediate opponent win in the local board, or securing an important edge position to maintain parity."
-
-    cot += f"Strategic Analysis: I am playing move ({gr},{gc}) ({lr},{lc}). {strategy} "
-    cot += f"Final Move Coordinates: ({gr},{gc}) ({lr},{lc})."
-
-    return cot
 
 def process_log_rotation(original_log: list[dict]) -> dict:
     print("Processing Logs...")
