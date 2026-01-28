@@ -1,0 +1,199 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{charter}
+\usepackage[ngerman]{babel}
+\usepackage[margin=1.6cm]{geometry}
+
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{siunitx} % for degrees
+
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{threeparttable} 
+
+\hyphenpenalty=10000
+\exhyphenpenalty=0
+\emergencystretch=2em
+
+\begin{document}
+	\begin{titlepage}
+		\centering
+		
+		{\large Hochschule Hof}
+		\vspace{0.5cm}
+		
+		{\large Multimodal AI}
+		\vspace{0.5cm}
+		
+		{\large Wintersemester 2025 / 26}
+		\vfill
+		
+		\vspace{0.5cm}
+		{\huge\bfseries Pre-Training Evaluation}
+		\vspace{1cm}
+		
+		\begin{tabular}{c c c}
+			\large Taha Faroukh Khapra & \large Fadhil Fasalu Rahiman & \large Naren Prakash \\
+			\small 00010623 & \small 00006523 & \small 00015623
+		\end{tabular}
+		\vfill
+		
+		{\large \textbf{Ultimate Tic Tac Toe}}
+		\vspace{0.5cm}
+		
+		{\large \textbf{Modell:} unsloth/Qwen3-VL-8B-Instruct-bnb-4bit}
+		\vspace{0.5cm}
+		
+	\end{titlepage}
+	
+	\newpage
+	
+	\section{Merkmale des Datensatzes}
+	Der Datensatz umfasst \textbf{4004} Datenpunkte. \textbf{1001} davon wurden manuell durch das Spielen des algorithmischen Bots gegen die Teammitglieder erstellt, die übrigen \textbf{3003} durch Drehung des ursprünglichen Datensatzes um \ang{90}, \ang{180} und \ang{270}. Alle Koordinaten und erforderlichen Informationen wurden entsprechend aktualisiert. Es handelt sich um einen \textbf{generativen VQA-Datensatz}, der es ermöglicht, während des Trainings und der Evaluierung dynamische Fragen zu stellen.
+	
+	\section{Fragen zur Evaluation}
+	Das Modell wird anhand von vier hierarchischen Aufgaben evaluiert:
+	\begin{description}[leftmargin=3.5cm, style=sameline]
+		\item [Allowed Square] Zuordnung der grünen Markierung in den Bildern zu logischen globalen Koordinaten (row, col)
+		\item [Move] Strategische Auswahl des optimalen lokalen Zuges (row, col) basierend auf dem aktuellen Spielstand.
+		\item [State] Lokale optische Zeichenerkennung zur Darstellung eines 3x3-Teilgitters als Textmatrix [X, O, .], wobei "`."' ein leeres Feld darstellt.
+		\item [Legality] Mehrstufige Prüfung, ob ein vorgeschlagener Zug innerhalb der "`Allowed Square"' liegt und ob das Teilgitter belegt ist.
+	\end{description}
+	
+	\section{Ergebnisse der Pre-Training Evaluation}
+	\begin{center}
+		\begin{threeparttable}
+			\renewcommand{\arraystretch}{1.2}
+			\setlength{\tabcolsep}{30pt}
+			\begin{tabular}{ l l c }
+ 			\toprule[\lightrulewidth]
+        	\textbf{Fragen} & \textbf{Metrics} & \textbf{Results (\%)} \\
+        	\midrule
+ 			Allowed Square & Accuracy\tnote{1} & 26,5 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			Move & Legality\tnote{2} & 14,5 \\
+ 			& Accuracy\tnote{3} & 2,0 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			State & Similarity Score\tnote{4} & 40,6 \\
+ 			& Accuracy\tnote{5} & 2,0 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			Legality & Logic\tnote{6} & 43,0 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			\bottomrule[\lightrulewidth]
+			\end{tabular}
+			
+			\begin{tablenotes}[flushleft]
+            \fontsize{9pt}{12pt}\selectfont
+            	\item[1] Die korrekte Identifizierung des grün markierten 3x3 Feldes.
+            	\item[2] Der Anteil der vorhergesagten Züge, die den offiziellen Spielregeln entsprechen.
+            	\item[3] Die exakte Übereinstimmung des gewählten Zuges mit dem berechneten "`Best Move"' des Ground Truth.
+            	\item[4] Die strukturelle Ähnlichkeit der vorhergesagten Matrix mit dem Ground Truth via Levenshtein-Distanz.
+            	\item[5] Die gesamte Matrix gilt als korrekt, wenn alle 9 Felder zu 100\% übereinstimmen..
+            	\item[6] Die Korrektheit der mehrstufigen Begründung (Occupancy/Constraint) für die Gültigkeit eines Zuges.
+        	\end{tablenotes}
+        	\caption{Ergebnisse der Evaluation}
+		\end{threeparttable}
+	\end{center}
+	
+	\newpage
+	
+	\section{Beispielergebnis der Evaluation}
+	\begin{table}[h]
+	\centering
+	{\ttfamily
+	\setlength{\tabcolsep}{5pt}
+	\renewcommand{\arraystretch}{1.2}
+	\begin{tabular}{c|c|c}
+	% --- Row 0 ---
+		\begin{tabular}{ccc}
+			. & . & . \\ . & . & . \\ . & . & X 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			O & . & . \\ . & . & . \\ . & . & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			. & X & O \\ . & . & X \\ . & . & . 
+		\end{tabular} \\
+		\hline
+	% --- Row 1 ---
+		\begin{tabular}{ccc}
+			. & . & O \\ . & . & . \\ . & . & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			. & . & X \\ . & O & . \\ . & . & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc} 
+			. & . & . \\ . & . & . \\ . & . & O 
+		\end{tabular} \\
+		\hline
+	% --- Row 2 ---
+		\begin{tabular}{ccc} 
+			. & . & . \\ . & . & . \\ . & . & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			. & . & . \\ . & X & . \\ . & . & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			. & . & . \\ X & . & . \\ . & . & . 
+		\end{tabular} \\
+	\end{tabular}}
+	\caption{Visualisierung des globalen Spielfelds}
+	\label{tab:global_board}
+	\end{table}
+	
+	\begin{description}[leftmargin=3.5cm, style=sameline]
+		\item [Allowed Square] \textbf{Prompt:} Identify the allowed square (active global subgrid) based on the green highlight. If none is highlighted, report null.
+		\item \textbf{Raw Response:} \dq The allowed square is [3, 2]. \dq
+		\item $\rightarrow$ \textbf{FAIL} Ground Truth: [2, 2]
+		\item [Move] \textbf{Prompt}: Visually analyze the board. It is Player O's turn. Identify the allowed square (green highlight) and then select the best move.
+		\item \textbf{Raw Response:} \dq The allowed square is [2, 2] and the local subgrid [2, 2] is empty. The optimal move is [2, 2, 2, 2]. \dq
+		\item [State] \textbf{Prompt}: Examine Global Subgrid (2, 2). Represent the 3x3 local grid state as a matrix of 'X', 'O', or '.' (Empty).
+		\item \textbf{Raw Response}: [\dq X \dq, \dq O \dq, \dq . \dq], [\dq . \dq, \dq . \dq, \dq X \dq], [\dq X \dq, \dq X \dq, \dq . \dq]
+		\item $\rightarrow$  \textbf{FAIL} Ground Truth: [\dq . \dq, \dq . \dq, \dq . \dq], [\dq X \dq, \dq . \dq, \dq . \dq], [\dq . \dq, \dq . \dq, \dq . \dq]
+		\item [Legality] \textbf{Prompt}: Is it legal for Player O to play at Global(2,2), Local(1,1)? Inspect the square state, then check the allowed square constraint to give the verdict.
+		\item \textbf{Raw Response:} \dq The target square is Local (1,1) within Global (2,2). This local grid contains a red X at (0,0) and a blue O at (0,1). The center (1,1) is empty. In Ultimate Tic-Tac-Toe, a player can only move in a local grid if their opponent has not yet won that local game. In Local(1,1), the current state is: [X, O; ?, ?]. There is no winner yet (no three-in-a-row/column/diagonal). Therefore, the move is legal. \dq
+		\item $\rightarrow$  \textbf{FAIL} Ground Truth: False / Illegal
+	\end{description}
+	\newpage
+	
+	\section{Qualitative Fehleranalyse}
+	Die Ergebnisse der Evaluation verdeutlichen die spezifischen Herausforderungen bei der Verarbeitung komplexer, geschachtelter Spielbretter durch VLMs.
+	
+	\begin{description}[leftmargin=!, labelwidth=1.5cm, style=nextline]
+    	\item[\textbf{1. Räumliche Lokalisierung:}] 
+    	Die geringe Genauigkeit bei der Identifizierung des Allowed Square deutet darauf hin, dass das Modell Schwierigkeiten hat, visuelle Marker (die grüne Hervorhebung) direkt in den Koordinatenraum zu übersetzen. Das Auftreten von "`Out-of-Bounds"'-Koordinaten mit Werten größer als 2 belegt zudem eine mangelnde interne Repräsentation der Spielfeldbegrenzung.
+
+    	\item[\textbf{2. Regelverständnis vs. Perzeption:}] 
+    	Die niedrigen Legality-Werte resultieren hauptsächlich aus einer fehlerhaften Objekt-erkennung. Zwar versteht das Modell das Konzept der Legalität, es scheitert jedoch daran, X und O korrekt auf dem Brett zu lokalisieren. Dadurch werden bereits belegte Felder fälschlicherweise als leer ("`Empty"') eingestuft.
+    	
+    	\item[\textbf{3. Strategische Tiefe:}] 
+    	Es ist zu erwarten, dass die Move Accuracy hinter einem klassischen Minimax-Algorithmus zurückbleibt. Während Minimax-Algorithmen für die Tiefensuche in Spielbäumen optimiert sind, fehlt einem 8B-Parameter-Modell ohne dedizierte "Search-and-Reasoning"-Architektur die Fähigkeit zur langfristigen Vorausplanung.
+    	
+    	\item[\textbf{4. Zustands-Halluzinationen:}] 
+    	Die Diskrepanz zwischen Similarity Score und Exact Accuracy zeigt, dass das Modell zwar das allgemeine Layout erkennt, aber bei der Detailerfassung der lokalen Subgrids zu Halluzinationen neigt und fiktive Spielzustände generiert.
+	\end{description}
+
+	\subsection{Optimierungsansätze zur Fehlerreduktion}
+	\begin{description}[leftmargin=!, labelwidth=1.5cm, style=nextline]
+		\item[\textbf{1. Multi-Task Curriculum Learning:}] 
+		Um die räumliche Wahrnehmung zu schärfen, sollte das Training das Modell gezielt mit Teilaufgaben konfrontieren. Durch die Gewichtung von Aufgaben wie der Identifizierung "`Allowed-Square"' oder der Erkennung lokaler Zustände wird das Modell gezwungen, zunächst die visuelle Ebene zu stabilisieren, bevor es strategische Entscheidungen trifft.
+		
+		\item[\textbf{2. Chain-of-Thought Reasoning:}] 
+    	Um Fehler zu vermeiden, sollte das Modell darauf trainiert werden, seine Antwort schrittweise aufzubauen. Anstatt direkt eine Koordinate auszugeben, muss das Modell zunächst einen visuellen Scan des relevanten Bereichs durchführen und alle belegten Felder explizit auflisten.
+   		
+   		\item[\textbf{3. JSON Enforcement:}] 
+		Die Einführung strenger Ausgaberegeln während des Feinabstimmungsprozesses sollte sicherstellen, dass das Modell lernt, Fehlalarme außerhalb des gültigen Bereichs zu unterdrücken und Antworten in einem maschinenlesbaren, gültigen Format zu liefern.
+		
+		\item[\textbf{4. Dynamic Region-of-Interest Zooming:}] 
+		Um die OCR-Präzision zu erhöhen, sollte ein hochauflösender Ausschnitt des aktiven Teilgitters als zusätzliche Eingabe dienen. Dies ermöglicht eine detailliertere Erfassung der $X$- und $O$-Markierungen, die in der Gesamtansicht unscharf sein könnten.
+		\end{description}
+\end{document}

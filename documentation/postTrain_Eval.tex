@@ -1,0 +1,252 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{charter}
+\usepackage[ngerman]{babel}
+\usepackage[margin=1.6cm]{geometry}
+
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{siunitx} % for degrees
+
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{threeparttable} 
+
+\usepackage{pgfplots}
+
+\hyphenpenalty=10000
+\exhyphenpenalty=0
+\emergencystretch=2em
+
+\begin{document}
+	\begin{titlepage}
+		\centering
+		
+		{\large Hochschule Hof}
+		\vspace{0.5cm}
+		
+		{\large Multimodal AI}
+		\vspace{0.5cm}
+		
+		{\large Wintersemester 2025 / 26}
+		\vfill
+		
+		\vspace{0.5cm}
+		{\huge\bfseries Post-Training Evaluation}
+		\vspace{1cm}
+		
+		\begin{tabular}{c c c}
+			\large Taha Faroukh Khapra & \large Fadhil Fasalu Rahiman & \large Naren Prakash \\
+			\small 00010623 & \small 00006523 & \small 00015623
+		\end{tabular}
+		\vfill
+		
+		{\large \textbf{Ultimate Tic Tac Toe}}
+		\vspace{0.5cm}
+		
+		{\large \textbf{Modell:} unsloth/Qwen3-VL-8B-Instruct-bnb-4bit}
+		\vspace{0.5cm}
+		
+	\end{titlepage}
+	
+	\newpage
+	
+	\section{Training}
+	Zur Optimierung wurde das Modell zunächst auf 1001 manuell erstellten Proben evaluiert, um die räumliche Integrität und Formatstabilität sicherzustellen. Die anschließende Skalierung auf 4004 Datenpunkte diente der Steigerung der Robustheit und der Verbesserung der Zustandserkennung. Parallel wurden die LoRA-Parameter von $r$ = 32, $\alpha$ = 32 über 64 auf 128 gesteigert, um eine ausreichende Modellkapazität für die komplexe hierarchische Spiellogik zu gewährleisten.
+		
+	\vspace{0.5em}
+
+	\definecolor{proBlue}{HTML}{0072B2} % Training
+	\definecolor{proRed}{HTML}{D55E00} % Validation
+	\definecolor{gridGray}{HTML}{B0B0B0}
+	\begin{center}
+	\begin{tikzpicture}
+    \begin{axis}[
+        title={\textbf{Training vs. Validation Loss}},
+        xlabel={Training Steps},
+        ylabel={Loss Value},
+        xmin=100, xmax=800,
+        ymin=0, ymax=0.35,
+        xtick={100,200,300,400,500,600,700,800},
+        yticklabel style={
+            /pgf/number format/fixed,
+            /pgf/number format/precision=2
+        },
+        grid=major,
+        grid style={dashed, gridGray},
+        legend style={nodes={scale=0.9, transform shape}},
+        width=15cm,
+        height=8cm,
+        axis line style={thick},
+        tick style={thick}
+    ]
+
+    % --- Training Loss Plot ---
+    \addplot[
+        color=proBlue,
+        mark=square*,
+        mark options={scale=0.8},
+        very thick
+    ]
+    coordinates {
+        (100, 0.247100)
+        (200, 0.300900)
+        (300, 0.257600)
+        (400, 0.156200)
+        (500, 0.083700)
+        (600, 0.089200)
+        (700, 0.052700)
+        (800, 0.052300)
+    };
+    \addlegendentry{Training Loss}
+
+    % --- Validation Loss Plot ---
+    \addplot[
+        color=proRed,
+        mark=*,
+        mark options={scale=1.0},
+        very thick
+    ]
+    coordinates {
+        (100, 0.247100)
+        (200, 0.082992)
+        (300, 0.082210)
+        (400, 0.074895) % Lowest point highlighted by line
+        (500, 0.076684)
+        (600, 0.076509)
+        (700, 0.090780)
+        (800, 0.091683)
+    };
+    \addlegendentry{Validation Loss}
+    
+    \node[draw=red, circle, very thick, inner sep=4pt, outer sep=3pt] (bestpoint) at (axis cs:400,0.074895) {};
+    
+    \node[anchor=south, align=center] (label) at (axis cs:290, 0.1) 
+        {\small \textbf{Best Validation} \\ \textbf{Loss} \small(0.075)};
+    
+    \draw[-, very thick, black, shorten <= -10pt] (label.south east) -- (bestpoint);
+
+    \end{axis}
+	\end{tikzpicture}
+	\end{center}
+	
+	\section{Ergebnisse der Post-Training Evaluation}
+	\begin{center}
+		\begin{threeparttable}
+			\renewcommand{\arraystretch}{1.2}
+			\setlength{\tabcolsep}{20pt}
+			\begin{tabular*}{\textwidth}{l l @{\extracolsep{\fill}} c c}
+ 			\toprule[\lightrulewidth]
+        	\textbf{Fragen} & \textbf{Metriken} & \textbf{Pre-Training (\%)} & \textbf{Post-Training (\%)} \\
+        	\midrule
+ 			Allowed Square & Accuracy\tnote{1} & 26,5 & 100,0 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			Move & Legality\tnote{2} & 14,5 & 93,8 \\
+ 			& Accuracy\tnote{3} & 2,0 & 13,2 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			State & Similarity Score\tnote{4} & 40,6 &  92,0 \\
+ 			& Accuracy\tnote{5} & 2,0 & 82,5 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			Legality & Logic\tnote{6} & 43,0 &  95,0 \\
+ 			\addlinespace[0.5em]
+ 		
+ 			\bottomrule[\lightrulewidth]
+			\end{tabular*}
+			
+			\begin{tablenotes}[flushleft]
+            \fontsize{9pt}{12pt}\selectfont
+            	\item[1] Die korrekte Identifizierung des grün markierten 3x3 Feldes.
+            	\item[2] Der Anteil der vorhergesagten Züge, die den offiziellen Spielregeln entsprechen.
+            	\item[3] Die exakte Übereinstimmung des gewählten Zuges mit dem berechneten "`Best Move"' des Ground Truth.
+            	\item[4] Die strukturelle Ähnlichkeit der vorhergesagten Matrix mit dem Ground Truth via Levenshtein-Distanz.
+            	\item[5] Die gesamte Matrix gilt als korrekt, wenn alle 9 Felder zu 100\% übereinstimmen..
+            	\item[6] Die Korrektheit der mehrstufigen Begründung (Occupancy/Constraint) für die Gültigkeit eines Zuges.
+        	\end{tablenotes}	
+        \caption{Ergebnisse der Evaluation}
+		\end{threeparttable}
+	\end{center}
+	
+	\newpage
+	\section{Beispielergebnis der Evaluation}
+	\begin{table}[h]
+	\centering
+	{\ttfamily
+	\setlength{\tabcolsep}{5pt}
+	\renewcommand{\arraystretch}{1.2}
+	\begin{tabular}{c|c|c}
+	% --- Row 0 ---
+		\begin{tabular}{ccc}
+			O & O & O \\ O & O & . \\ . & X & O 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			X & . & . \\ . & . & . \\ X & X & X 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			X & . & X \\ . & . & O \\ X & . & . 
+		\end{tabular} \\
+		\hline
+	% --- Row 1 ---
+		\begin{tabular}{ccc}
+			X & . & . \\ . & . & . \\ X & . & X 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			X & . & . \\ . & X & O \\ O & X & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc} 
+			X & . & O \\ . & . & . \\ X & X & . 
+		\end{tabular} \\
+		\hline
+	% --- Row 2 ---
+		\begin{tabular}{ccc} 
+			O & O & O \\ O & X & X \\ X & O & O
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			O & O & . \\ O & O & O \\ O & X & . 
+		\end{tabular} & 
+		\begin{tabular}{ccc}
+			X & O & . \\ . & . & . \\ X & X & O 
+		\end{tabular} \\
+	\end{tabular}}
+	\caption{Visualisierung des globalen Spielfelds}
+	\label{tab:global_board}
+	\end{table}
+	
+	\begin{description}[leftmargin=3.5cm, style=sameline]
+		\item [Allowed Square] \textbf{Prompt:} Identify the allowed square (active global subgrid) based on the green highlight. If none is highlighted, report null.
+		\item \textbf{Raw Response:} \\ JSON\_START	\\ \{\dq allowed\_square \dq: null\} \\ JSON\_END
+		\item $\rightarrow$ \textbf{SUCCESS} Ground Truth: None
+		
+		\item [Move] \textbf{Prompt}: Visually analyze the board. It is Player O's turn. Identify the allowed square (green highlight) and then select the best move.
+		\item \textbf{Raw Response:} \\ JSON\_START \\ \{\dq allowed\_square": null, "thinking": "No active constraint. Free move. Playing at global board (1,0) local position (0,2) secures a critical corner within that specific grid, potentially setting up future winning lines or blocking O's attempts to control that sector. This move sends the opponent to global board (0,2), where they have no immediate tactical advantage and must fight for basic territory rather than contesting more valuable central boards. By capturing this corner of the left-middle global cell, X strengthens their hold on the left column of the macro grid while forcing O into a less impactful quadrant.", "best\_move": \{"global\_row": 1, "global\_col": 0, "local\_row": 0, "local\_col": 2\}\} \\ JSON\_END
+		
+		\item [State] \textbf{Prompt}: Examine Global Subgrid (1, 1). Represent the 3x3 local grid state as a matrix of 'X', 'O', or '.' (Empty).
+		\item \textbf{Raw Response}: \\ JSON\_START \\ \{"target\_global": [1, 1], "grid\_matrix": [["X", ".", "."], [".", "X", \dq O"], [\dq O", "X", "."]]\} \\ JSON\_END
+		\item $\rightarrow$  \textbf{SUCCESS} Ground Truth: ["X", ".", "."], [".", "X", \dq O"], [\dq O", "X", "."]
+		\item [Legality] \textbf{Prompt}: Is it legal for Player X to play at Global(1,1), Local(1,1)? Step 1: Inspect the square state. Step 2: Check allowed square constraint. Step 3: Verdict.
+		\item \textbf{Raw Response:} \\ JSON\_START \\ \{"step\_1\_square\_state": "X", "step\_2\_allowed\_square": null, \dq is\_legal": false, "reason": "Square is occupied by X."\} \\ JSON\_END
+		\item $\rightarrow$  \textbf{SUCCESS} Ground Truth: False / Illegal
+	\end{description}
+	
+	\section{Vergleichende Analyse und Fortschrittsbewertung}
+	Der Vergleich zeigt eine Leistungssteigerung in allen Metriken. Die Optimierungs-strategien haben die Schwächen bei räumlicher Wahrnehmung und logischer Konsistenz weitgehend behoben.
+	
+	\begin{description}[leftmargin=!, labelwidth=1.5cm, style=nextline]
+		\item [Räumliche Präzision] Während das Modell vor dem Training große Schwierigkeiten hatte, die grüne Hervorhebung zu interpretieren (26,5\,\% Accuracy), erreicht es nach dem Training eine perfekte Lokalisierung (100,0\,\%). Dies belegt, dass die Kombination aus Multi-Task-Learning und striktem Koordinatentraining die interne Repräsentation der Spielfeldbegrenzung stabilisiert hat.
+		
+		\item [Perzeptions-Halluzinationen] Ein kritischer Ausgangsfehler war die Halluzination fiktiver Spielfiguren. Durch gezieltes Training der Zustandserkennung konnte die Genauigkeit der Matrix von 2,0\,\% auf 82,5\,\% gesteigert werden. Das Modell war zudem in der Lage, das Bild erfolgreich zu scannen, was sich in dem hohen Ähnlichkeitswert von 92,0\,\% widerspiegelt.. Die Fehlerrate ist wahrscheinlich auf hochkomplexe Endspielszenarien mit hoher Figurendichte zurückzuführen und nicht mehr auf grundlegende Wahrnehmungsfehler.
+		
+		\item [Strategische Tiefe] Trotz der massiven Steigerung der Legalität bleibt die \textit{Move Accuracy} mit 13,2\,\% vergleichsweise niedrig. Dies bestätigt die Hypothese aus der qualitativen Analyse: Ein 8B-Parameter-Modell kann zwar die Spielregeln perfekt erlernen und anwenden, besitzt jedoch ohne explizite Algorithmen nicht die strategische Tiefe, um gegen einen optimierten Minimax-Algorithmus zu bestehen. Das Modell spielt nun "`regelkonform"', aber noch nicht "`großmeisterlich"'.
+		
+		\item [JSON Enforcement] Die Einführung des JSON-Protocolls und des Chain-of-Thought Reasoning hat die Logik-Metrik von 43,0\,\%  auf 95,0\,\% gehoben. Die Modellantworten folgen nun konsistent dem maschinenlesbaren Format, was Parsing-Fehler eliminierte. Der Move Legality des Zuges stieg von 14,5\,\% auf 93,8\,\%, was zeigt, dass das Modell das Feld „Denken“ erfolgreich zur Regelprüfung nutzt.
+	\end{description}
+	
+	\section{Fazit}
+	Die Evaluation zeigt, dass VLMs durch gezieltes Finetuning und strukturierte Antwortformate komplexe visuelle Logikaufgaben wie Ultimate Tic-Tac-Toe bewältigen können. Die Transformation von rein deskriptiver Bildanalyse zu einer regelbasierten Entscheidungsfindung verbesserte die von uns untersuchten Metriken und wertete das Training somit als Erfolg.
+\end{document}
