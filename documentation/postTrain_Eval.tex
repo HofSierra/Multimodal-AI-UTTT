@@ -17,10 +17,17 @@
 \usepackage{threeparttable} 
 
 \usepackage{pgfplots}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{subcaption}
 
 \hyphenpenalty=10000
 \exhyphenpenalty=0
 \emergencystretch=2em
+
+\definecolor{proBlue}{HTML}{0072B2} % Training
+\definecolor{proRed}{HTML}{D55E00} % Validation
+\definecolor{gridGray}{HTML}{B0B0B0}
 
 \begin{document}
 	\begin{titlepage}
@@ -56,83 +63,115 @@
 	\newpage
 	
 	\section{Training}
-	Zur Optimierung wurde das Modell zunächst auf 1001 manuell erstellten Proben evaluiert, um die räumliche Integrität und Formatstabilität sicherzustellen. Die anschließende Skalierung auf 4004 Datenpunkte diente der Steigerung der Robustheit und der Verbesserung der Zustandserkennung. Parallel wurden die LoRA-Parameter von $r$ = 32, $\alpha$ = 32 über 64 auf 128 gesteigert, um eine ausreichende Modellkapazität für die komplexe hierarchische Spiellogik zu gewährleisten.
+	
+	\subsection{Phase 1 - Hybride Strategie} 
+	Der erste Ansatz basierte auf einer hybriden Strategie, bei der das Modell neben dem visuellen Input auch ASCII-Board-Repräsentationen und textliche Spielzustandsbeschreibungen erhielt. Das Ziel war die Vorhersage des optimalen Zuges unter expliziter Anleitung. Technisch wurde dies durch eine PEFT-Konfiguration mit $r$=32, $\alpha$=32 umgesetzt, wobei der Fokus auf den Attention-Projektionen (\texttt{q, k, v, o\_proj}) und der \texttt{vision\_tower.image\_projection} lag. 
+
+	\subsection{Analyse}
+	Wie in Abbildung \ref{fig:phase1} ersichtlich, zeigen die Loss-Kurven dieser Phase einen auffallend flachen Verlauf mit minimaler Varianz. Diese geringe Dynamik deutet darauf hin, dass das Modell keine tiefgreifende visuelle Logik entwickelte, sondern lediglich eine oberflächliche Korrelation zwischen dem ASCII-Text und dem Ziel-JSON herstellte. Anstatt die Spielfiguren im Bild zu interpretieren, fungierte das Modell primär als Text-Interpreter. Tests ohne die ASCII-Hilfestellung bestätigten diese Vermutung, da die Vorhersagequalität ohne textuellen Kontext einbrach, was die mangelnde Robustheit der visuellen Merkmalserkennung belegte.
+		
+	\subsection{Phase 2 - Kontextzentrierte Optimierung}
+	Um eine echte visuelle Autonomie zu erreichen, wurde in der zweiten Phase das gesamte Trainingsprotokoll neu erstellt. Durch den Wechsel auf ein \texttt{all-linear}-Targeting und die Erhöhung des Ranks auf $r$=128 wurde die Modellkapazität signifikant erweitert. Die Abstraktion des Embedding-Targeting auf die generische \texttt{visual}-Schnittstelle ermöglichte zudem eine tiefere Integration der Bilddaten. In Kombination mit einem Multitasking-Skript, das die Identifikation des aktiven Subgrids und die visuelle Matrix-Rekonstruktion ohne Text-Aids forderte, zeigt die Loss-Kurve in Abbildung \ref{fig:phase2} eine deutlich gesündere Dynamik.
 		
 	\vspace{0.5em}
+	
+	\begin{figure}[htbp]
+  		\centering
+  		\captionsetup{justification=centering}
+  		% --- Phase 1 Graph ---
+  		\begin{subfigure}[t]{0.4\textwidth}
+    		\begin{tikzpicture}
+    		\begin{axis}[
+    			scale only axis,
+        		xlabel={Training Steps},
+        		ylabel={Loss Value},
+        		title={\small \textbf{(a) Phase 1: Lernen durch Texthilfen}},
+        		title style={yshift=0.5em},
+        		xmin=201, xmax=1608,
+        		ymin=0, ymax=0.16,
+        		xtick={400, 800, 1200, 1600},
+                ytick={0, 0.04, 0.08, 0.12, 0.16},
+        		yticklabel style={
+            		/pgf/number format/fixed,
+            		/pgf/number format/precision=2
+        		},
+        		grid=major,
+        		grid style={dashed, gridGray},
+        		legend style={nodes={scale=0.9, transform shape}},
+        		width=\linewidth,
+                height=5.7cm,
+        		axis line style={thick},
+        		tick style={thick}
+    		]	
 
-	\definecolor{proBlue}{HTML}{0072B2} % Training
-	\definecolor{proRed}{HTML}{D55E00} % Validation
-	\definecolor{gridGray}{HTML}{B0B0B0}
-	\begin{center}
-	\begin{tikzpicture}
-    \begin{axis}[
-        title={\textbf{Training vs. Validation Loss}},
-        xlabel={Training Steps},
-        ylabel={Loss Value},
-        xmin=100, xmax=800,
-        ymin=0, ymax=0.35,
-        xtick={100,200,300,400,500,600,700,800},
-        yticklabel style={
-            /pgf/number format/fixed,
-            /pgf/number format/precision=2
-        },
-        grid=major,
-        grid style={dashed, gridGray},
-        legend style={nodes={scale=0.9, transform shape}},
-        width=15cm,
-        height=8cm,
-        axis line style={thick},
-        tick style={thick}
-    ]
+	    	% --- Training Loss Plot ---
+    		\addplot[color=proBlue, mark=square*, mark options={scale=0.6}, thick]
+    			coordinates {(201, 0.081100) (402, 0.065200) (603, 0.066100) (804, 0.058300) (1005, 0.058600) (1206, 0.057900) (1407, 0.055900) (1608, 0.048900)};
+    		\label{plot:train}
 
-    % --- Training Loss Plot ---
-    \addplot[
-        color=proBlue,
-        mark=square*,
-        mark options={scale=0.8},
-        very thick
-    ]
-    coordinates {
-        (100, 0.247100)
-        (200, 0.300900)
-        (300, 0.257600)
-        (400, 0.156200)
-        (500, 0.083700)
-        (600, 0.089200)
-        (700, 0.052700)
-        (800, 0.052300)
-    };
-    \addlegendentry{Training Loss}
+    		% --- Validation Loss Plot ---
+    		\addplot[color=proRed, mark=*, mark options={scale=0.7}, thick]
+    			coordinates {(201, 0.078109) (402, 0.069689) (603, 0.065381) (804, 0.063964) (1005, 0.063729) (1206, 0.065534) (1407, 0.066580) (1608, 0.068977)};
+    		\label{plot:eval}
+    		\end{axis}
+			\end{tikzpicture}
+			\phantomsubcaption\label{fig:phase1}
+  		\end{subfigure}
+  		\hfill
+  		% --- Phase 2 Graph ---
+  		\begin{subfigure}[t]{0.4\textwidth}
+    		\begin{tikzpicture}
+    		\begin{axis}[
+    			scale only axis,
+        		xlabel={Training Steps},
+        		ylabel style={yshift=-0.5em},
+        		ylabel={Loss Value},
+        		title={\small \textbf{(b) Phase 2: Lernen der Spiellogik}},
+        		title style={yshift=0.5em},
+        		xmin=100, xmax=800,
+                ymin=0, ymax=0.40,
+                ytick={0, 0.10, 0.20, 0.30, 0.40},       			
+                xtick={200, 400, 600, 800},
+        		yticklabel style={
+            		/pgf/number format/fixed,
+            		/pgf/number format/precision=2
+        		},
+        		grid=major,
+        		grid style={dashed, gridGray},
+        		width=\linewidth,
+        		height=5.7cm,
+        		axis line style={thick},
+        		tick style={thick}
+    		]
 
-    % --- Validation Loss Plot ---
-    \addplot[
-        color=proRed,
-        mark=*,
-        mark options={scale=1.0},
-        very thick
-    ]
-    coordinates {
-        (100, 0.247100)
-        (200, 0.082992)
-        (300, 0.082210)
-        (400, 0.074895) % Lowest point highlighted by line
-        (500, 0.076684)
-        (600, 0.076509)
-        (700, 0.090780)
-        (800, 0.091683)
-    };
-    \addlegendentry{Validation Loss}
+    		% --- Training Loss Plot ---
+    		\addplot[color=proBlue, mark=square*, mark options={scale=0.6}, thick]
+   				coordinates {(100, 0.247100) (200, 0.300900) (300, 0.257600) (400, 0.156200) (500, 0.083700) (600, 0.089200) (700, 0.052700) (800, 0.052300)};
+   			\label{plot:train}
+
+    		% --- Validation Loss Plot ---
+    		\addplot[color=proRed, mark=*, mark options={scale=0.7}, thick]
+    			coordinates {(100, 0.098282) (200, 0.082992) (300, 0.082210) (400, 0.074895) (500, 0.076684) (600, 0.076509) (700, 0.090780) (800, 0.091683)};
+    		\label{plot:eval}
     
-    \node[draw=red, circle, very thick, inner sep=4pt, outer sep=3pt] (bestpoint) at (axis cs:400,0.074895) {};
-    
-    \node[anchor=south, align=center] (label) at (axis cs:290, 0.1) 
-        {\small \textbf{Best Validation} \\ \textbf{Loss} \small(0.075)};
-    
-    \draw[-, very thick, black, shorten <= -10pt] (label.south east) -- (bestpoint);
-
-    \end{axis}
-	\end{tikzpicture}
-	\end{center}
+    		\node[draw=black, circle, thick, inner sep=3pt, outer sep=3pt] (bestpoint) at (axis cs:400,0.074895) {};     
+            \draw[<-, thick, black] (bestpoint) -- ++(-0.2cm, 0.5cm) node[anchor=south east, align=center] {\small Best Eval};
+                	
+            \end{axis}
+			\end{tikzpicture}
+			\phantomsubcaption\label{fig:phase2}
+  		\end{subfigure}
+  		\hfill  		
+  		\vspace{-1em}
+    	\begin{center}
+        	\ref{plot:train} Training Loss \quad \ref{plot:eval} Validation Loss
+    	\end{center}
+  		
+  		\caption{Vergleich der Trainingsdynamik zwischen dem \\ initialen und dem optimierten Modellsetup.}
+  		\phantomsubcaption\label{fig:loss_vergleich}
+	\end{figure}
+			
+	\vspace{0.5em}
 	
 	\section{Ergebnisse der Post-Training Evaluation}
 	\begin{center}
@@ -166,14 +205,13 @@
             	\item[2] Der Anteil der vorhergesagten Züge, die den offiziellen Spielregeln entsprechen.
             	\item[3] Die exakte Übereinstimmung des gewählten Zuges mit dem berechneten "`Best Move"' des Ground Truth.
             	\item[4] Die strukturelle Ähnlichkeit der vorhergesagten Matrix mit dem Ground Truth via Levenshtein-Distanz.
-            	\item[5] Die gesamte Matrix gilt als korrekt, wenn alle 9 Felder zu 100\% übereinstimmen..
+            	\item[5] Die gesamte Matrix gilt als korrekt, wenn alle 9 Felder zu 100\% übereinstimmen.
             	\item[6] Die Korrektheit der mehrstufigen Begründung (Occupancy/Constraint) für die Gültigkeit eines Zuges.
         	\end{tablenotes}	
         \caption{Ergebnisse der Evaluation}
 		\end{threeparttable}
 	\end{center}
 	
-	\newpage
 	\section{Beispielergebnis der Evaluation}
 	\begin{table}[h]
 	\centering
@@ -215,7 +253,6 @@
 		\end{tabular} \\
 	\end{tabular}}
 	\caption{Visualisierung des globalen Spielfelds}
-	\label{tab:global_board}
 	\end{table}
 	
 	\begin{description}[leftmargin=3.5cm, style=sameline]
@@ -223,6 +260,7 @@
 		\item \textbf{Raw Response:} \\ JSON\_START	\\ \{\dq allowed\_square \dq: null\} \\ JSON\_END
 		\item $\rightarrow$ \textbf{SUCCESS} Ground Truth: None
 		
+		\newpage
 		\item [Move] \textbf{Prompt}: Visually analyze the board. It is Player O's turn. Identify the allowed square (green highlight) and then select the best move.
 		\item \textbf{Raw Response:} \\ JSON\_START \\ \{\dq allowed\_square": null, "thinking": "No active constraint. Free move. Playing at global board (1,0) local position (0,2) secures a critical corner within that specific grid, potentially setting up future winning lines or blocking O's attempts to control that sector. This move sends the opponent to global board (0,2), where they have no immediate tactical advantage and must fight for basic territory rather than contesting more valuable central boards. By capturing this corner of the left-middle global cell, X strengthens their hold on the left column of the macro grid while forcing O into a less impactful quadrant.", "best\_move": \{"global\_row": 1, "global\_col": 0, "local\_row": 0, "local\_col": 2\}\} \\ JSON\_END
 		
@@ -230,23 +268,24 @@
 		\item \textbf{Raw Response}: \\ JSON\_START \\ \{"target\_global": [1, 1], "grid\_matrix": [["X", ".", "."], [".", "X", \dq O"], [\dq O", "X", "."]]\} \\ JSON\_END
 		\item $\rightarrow$  \textbf{SUCCESS} Ground Truth: ["X", ".", "."], [".", "X", \dq O"], [\dq O", "X", "."]
 		\item [Legality] \textbf{Prompt}: Is it legal for Player X to play at Global(1,1), Local(1,1)? Step 1: Inspect the square state. Step 2: Check allowed square constraint. Step 3: Verdict.
-		\item \textbf{Raw Response:} \\ JSON\_START \\ \{"step\_1\_square\_state": "X", "step\_2\_allowed\_square": null, \dq is\_legal": false, "reason": "Square is occupied by X."\} \\ JSON\_END
+		\item \textbf{Raw Response:} \\ JSON\_START \\ \{\dq step\_1\_square\_state": "X", \dq step\_2\_allowed\_square": null, \dq is\_legal": false, "reason": \dq Square is occupied by X."\} \\ JSON\_END
 		\item $\rightarrow$  \textbf{SUCCESS} Ground Truth: False / Illegal
 	\end{description}
 	
+	\newpage
 	\section{Vergleichende Analyse und Fortschrittsbewertung}
 	Der Vergleich zeigt eine Leistungssteigerung in allen Metriken. Die Optimierungs-strategien haben die Schwächen bei räumlicher Wahrnehmung und logischer Konsistenz weitgehend behoben.
 	
 	\begin{description}[leftmargin=!, labelwidth=1.5cm, style=nextline]
-		\item [Räumliche Präzision] Während das Modell vor dem Training große Schwierigkeiten hatte, die grüne Hervorhebung zu interpretieren (26,5\,\% Accuracy), erreicht es nach dem Training eine perfekte Lokalisierung (100,0\,\%). Dies belegt, dass die Kombination aus Multi-Task-Learning und striktem Koordinatentraining die interne Repräsentation der Spielfeldbegrenzung stabilisiert hat.
+		\item [Räumliche Präzision] Während das Modell vor dem Training große Schwierigkeiten hatte, die grüne Hervorhe-bung zu interpretieren (26,5\,\% Accuracy), erreicht es nach dem Training eine perfekte Lokali-sierung (100,0\,\%). Dies belegt, dass die Kombination aus Multi-Task-Learning und striktem Koordinatentraining die interne Repräsentation der Spielfeldbegrenzung stabilisiert hat.
 		
-		\item [Perzeptions-Halluzinationen] Ein kritischer Ausgangsfehler war die Halluzination fiktiver Spielfiguren. Durch gezieltes Training der Zustandserkennung konnte die Genauigkeit der Matrix von 2,0\,\% auf 82,5\,\% gesteigert werden. Das Modell war zudem in der Lage, das Bild erfolgreich zu scannen, was sich in dem hohen Ähnlichkeitswert von 92,0\,\% widerspiegelt.. Die Fehlerrate ist wahrscheinlich auf hochkomplexe Endspielszenarien mit hoher Figurendichte zurückzuführen und nicht mehr auf grundlegende Wahrnehmungsfehler.
+		\item [Perzeptions-Halluzinationen] Ein kritischer Ausgangsfehler war die Halluzination fiktiver Spielfiguren. Durch gezieltes Training der Zustandserkennung konnte die Genauigkeit der Matrix von 2,0\,\% auf 82,5\,\% gesteigert werden. Das Modell war zudem in der Lage, das Bild erfolgreich zu scannen, was sich in dem hohen Ähnlichkeitswert von 92,0\,\% widerspiegelt. Die Fehlerrate ist wahrscheinlich auf hochkomplexe Endspielszenarien mit hoher Figurendichte zurückzuführen und nicht mehr auf grundlegende Wahrnehmungsfehler.
 		
-		\item [Strategische Tiefe] Trotz der massiven Steigerung der Legalität bleibt die \textit{Move Accuracy} mit 13,2\,\% vergleichsweise niedrig. Dies bestätigt die Hypothese aus der qualitativen Analyse: Ein 8B-Parameter-Modell kann zwar die Spielregeln perfekt erlernen und anwenden, besitzt jedoch ohne explizite Algorithmen nicht die strategische Tiefe, um gegen einen optimierten Minimax-Algorithmus zu bestehen. Das Modell spielt nun "`regelkonform"', aber noch nicht "`großmeisterlich"'.
+		\item [Strategische Tiefe] Trotz der massiven Steigerung der Legalität bleibt die \textit{Move Accuracy} mit 13,2\,\% vergleichs-weise niedrig. Dies bestätigt die Hypothese aus der qualitativen Analyse: Ein 8B-Parameter-Modell kann zwar die Spielregeln perfekt erlernen und anwenden, besitzt jedoch ohne explizite Algorithmen nicht die strategische Tiefe, um gegen einen optimierten Minimax-Algorithmus zu bestehen. Das Modell spielt nun "`regelkonform"', aber noch nicht "`großmeisterlich"'.
 		
-		\item [JSON Enforcement] Die Einführung des JSON-Protocolls und des Chain-of-Thought Reasoning hat die Logik-Metrik von 43,0\,\%  auf 95,0\,\% gehoben. Die Modellantworten folgen nun konsistent dem maschinenlesbaren Format, was Parsing-Fehler eliminierte. Der Move Legality des Zuges stieg von 14,5\,\% auf 93,8\,\%, was zeigt, dass das Modell das Feld „Denken“ erfolgreich zur Regelprüfung nutzt.
+		\item [JSON Enforcement] Die Einführung des JSON-Protokolls und des Chain-of-Thought Reasoning hat die Logik-Metrik von 43,0\,\%  auf 95,0\,\% gehoben. Die Modellantworten folgen nun konsistent dem maschinenlesbaren Format, was Parsing-Fehler eliminierte. Die Move Legality des Zuges stieg von 14,5\,\% auf 93,8\,\%, was zeigt, dass das Modell das Feld „thinking“ erfolgreich zur Regelprüfung nutzt.
 	\end{description}
 	
 	\section{Fazit}
-	Die Evaluation zeigt, dass VLMs durch gezieltes Finetuning und strukturierte Antwortformate komplexe visuelle Logikaufgaben wie Ultimate Tic-Tac-Toe bewältigen können. Die Transformation von rein deskriptiver Bildanalyse zu einer regelbasierten Entscheidungsfindung verbesserte die von uns untersuchten Metriken und wertete das Training somit als Erfolg.
+	Die Evaluation zeigt, dass VLMs durch gezieltes Finetuning und strukturierte Antwortformate komplexe visuelle Logikaufgaben wie Ultimate Tic-Tac-Toe bewältigen können. Die Transfor-mation von rein deskriptiver Bildanalyse zu einer regelbasierten Entscheidungsfindung verbesserte die von uns untersuchten Metriken und wertete das Training somit als Erfolg.
 \end{document}
